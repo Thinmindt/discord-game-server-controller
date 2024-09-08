@@ -1,0 +1,20 @@
+version: "3"
+
+services:
+  app:
+    user: vscode
+    # ports:
+    #   - 8000:8000
+    #   - 3000:3000
+    #environment:
+    #   - ENVIRONMENT_VARIABLE
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+
+    volumes:
+      - ..:/workspace
+      - ~/.ssh:/root/.ssh
+
+    # Overrides default command so things don't shut down after the process ends.
+    command: sleep infinity
