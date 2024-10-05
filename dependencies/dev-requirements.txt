@@ -28,5 +28,9 @@ pycodestyle==2.12.1
     # via flake8
 pyflakes==3.2.0
     # via flake8
+types-requests==2.32.0.20240914
+    # via -r dependencies/dev-requirements.in
 typing-extensions==4.12.2
     # via mypy
+urllib3==2.2.3
+    # via types-requests

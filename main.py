@@ -1,3 +1,4 @@
+import asyncio
 import pathlib
 import discord
 from discord.ext import commands
@@ -7,24 +8,25 @@ import os
 import discord
 from dotenv import load_dotenv
 
+from src.palworld_api import PalworldAPI
 from src.server_conductor import ServerConductor
-from src.server_monitor import ServerMonitor
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_PATH = pathlib.Path(os.getenv("SERVER_PATH") or "")
 DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
+API_USERNAME = os.getenv("SERVER_REST_API_USERNAME")
+API_PASSWORD = os.getenv("SERVER_REST_API_PASSWORD")
 
-if not SERVER_PATH.exists():
-    raise Exception(
-        "ERROR: The path for the server in your `.env` file does not exist."
-    )
-if TOKEN is None:
-    raise Exception("ERROR: Discord token was not found")
+assert SERVER_PATH
+assert TOKEN
+assert API_USERNAME
+assert API_PASSWORD
 
 COMMAND_PREFIX = "!"
 
-server_conductor: ServerConductor = ServerConductor(SERVER_PATH)
+palworld_api = PalworldAPI(API_USERNAME, API_PASSWORD)
+server_conductor: ServerConductor = ServerConductor(SERVER_PATH, palworld_api)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -38,8 +40,6 @@ async def start_server(ctx):
     if not server_conductor.is_on:
         server_conductor.start_server()
         await ctx.send("Server started!")
-        server_monitor = ServerMonitor(DISCORD_CHANNEL_ID, bot)
-        server_conductor.add_monitor(server_monitor)
     else:
         await ctx.send("Server is already running.")
 
@@ -48,9 +48,34 @@ async def start_server(ctx):
 async def restart_server(ctx):
     """Restart the game server."""
 
+    wait_time = 10  # seconds from shutdown command issued until the server stops.
     if server_conductor.is_on:
-        server_conductor.restart_server()
+        try:
+            palworld_api.shutdown_server(wait_time=10)
+            await ctx.send(
+                f"Server shutting down in {wait_time} seconds to prepare for a reset. Log out now!"
+            )
+        except Exception as error:
+            await ctx.send(error)
+            return
+        await asyncio.sleep(wait_time + 5)
+        server_conductor.start_server()
         await ctx.send("Server restarted!")
+    else:
+        await ctx.send("Server is not running.")
+
+
+@bot.command(name="stop")
+async def stop_server(ctx):
+    """Stop and close the game server."""
+
+    wait_time = 10  # seconds
+    if server_conductor.is_on:
+        try:
+            palworld_api.shutdown_server(wait_time=wait_time)
+            await ctx.send(f"Server will shut down in {wait_time} seconds.")
+        except Exception as error:
+            await ctx.send(error)
     else:
         await ctx.send("Server is not running.")
 

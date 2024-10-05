@@ -12,6 +12,10 @@ aiosignal==1.3.1
     # via aiohttp
 attrs==24.2.0
     # via aiohttp
+certifi==2024.8.30
+    # via requests
+charset-normalizer==3.3.2
+    # via requests
 discord-py==2.4.0
     # via -r dependencies/requirements.in
 frozenlist==1.4.1
@@ -19,12 +23,18 @@ frozenlist==1.4.1
     #   aiohttp
     #   aiosignal
 idna==3.8
-    # via yarl
+    # via
+    #   requests
+    #   yarl
 multidict==6.0.5
     # via
     #   aiohttp
     #   yarl
 python-dotenv==1.0.1
     # via -r dependencies/requirements.in
+requests==2.32.3
+    # via -r dependencies/requirements.in
+urllib3==2.2.3
+    # via requests
 yarl==1.10.0
     # via aiohttp
