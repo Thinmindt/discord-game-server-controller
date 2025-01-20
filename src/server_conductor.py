@@ -12,7 +12,9 @@ class ServerControlError(Exception):
 class ServerConductor:
     """Control a Steam CMD style server. Initialize it with the path to the server executable."""
 
-    def __init__(self, server_path: pathlib.Path, api: PalworldAPI, steam_cmd_path: pathlib.Path):
+    def __init__(
+        self, server_path: pathlib.Path, api: PalworldAPI, steam_cmd_path: pathlib.Path
+    ):
         self.server_path = server_path
         self.steam_cmd_path = steam_cmd_path
         self.api = api
@@ -36,7 +38,17 @@ class ServerConductor:
     def update_server(self):
 
         self.server_process = subprocess.Popen(
-            [self.steam_cmd_path, "+force_install_dir", "/home/Steam/steamapps/common/PalServer", "+login", "anonymous", "+app_update", "2394010", "validate", "+quit"],
+            [
+                self.steam_cmd_path,
+                "+force_install_dir",
+                "/home/Steam/steamapps/common/PalServer",
+                "+login",
+                "anonymous",
+                "+app_update",
+                "2394010",
+                "validate",
+                "+quit",
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

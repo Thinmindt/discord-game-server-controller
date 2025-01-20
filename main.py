@@ -27,13 +27,16 @@ assert API_PASSWORD
 COMMAND_PREFIX = "!"
 
 palworld_api = PalworldAPI(API_USERNAME, API_PASSWORD)
-server_conductor: ServerConductor = ServerConductor(SERVER_PATH, palworld_api, STEAM_CMD_PATH)
+server_conductor: ServerConductor = ServerConductor(
+    SERVER_PATH, palworld_api, STEAM_CMD_PATH
+)
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
 list_of_commands = ["help", "start", "restart", "stop", "update"]
+
 
 @bot.command(name="start")
 async def start_server(ctx):
@@ -89,10 +92,9 @@ async def update_server(ctx):
     if server_conductor.is_on:
         await ctx.send(f"The server is running. Shut it down before updating.")
         return
-    await ctx.send(f"Updating...")
-    server_conductor.update_server()
-    await ctx.send(f"Server Updated.")
-
+    await ctx.send(f"This don't work yet.\n\n Coming Soon!")
+    # server_conductor.update_server()
+    # await ctx.send(f"Server Updated.")
 
 
 bot.run(TOKEN)
