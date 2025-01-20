@@ -14,6 +14,7 @@ from src.server_conductor import ServerConductor
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 SERVER_PATH = pathlib.Path(os.getenv("SERVER_PATH") or "")
+STEAM_CMD_PATH = pathlib.Path(os.getenv("STEAM_CMD_PATH") or "")
 DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
 API_USERNAME = os.getenv("SERVER_REST_API_USERNAME")
 API_PASSWORD = os.getenv("SERVER_REST_API_PASSWORD")
@@ -26,12 +27,13 @@ assert API_PASSWORD
 COMMAND_PREFIX = "!"
 
 palworld_api = PalworldAPI(API_USERNAME, API_PASSWORD)
-server_conductor: ServerConductor = ServerConductor(SERVER_PATH, palworld_api)
+server_conductor: ServerConductor = ServerConductor(SERVER_PATH, palworld_api, STEAM_CMD_PATH)
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
+list_of_commands = ["help", "start", "restart", "stop", "update"]
 
 @bot.command(name="start")
 async def start_server(ctx):
@@ -78,6 +80,19 @@ async def stop_server(ctx):
             await ctx.send(error)
     else:
         await ctx.send("Server is not running.")
+
+
+@bot.command(name="update")
+async def update_server(ctx):
+    """Update the server. You must stop the server before updating."""
+
+    if server_conductor.is_on:
+        await ctx.send(f"The server is running. Shut it down before updating.")
+        return
+    await ctx.send(f"Updating...")
+    server_conductor.update_server()
+    await ctx.send(f"Server Updated.")
+
 
 
 bot.run(TOKEN)
