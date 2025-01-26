@@ -1,36 +1,23 @@
 import asyncio
-import pathlib
 import discord
 from discord.ext import commands
 
-import os
 
 import discord
-from dotenv import load_dotenv
 
+from src.config import Config
 from src.palworld_api import PalworldAPI
-from src.server_conductor import ServerConductor
-
-load_dotenv()
-TOKEN = os.getenv("DISCORD_TOKEN")
-SERVER_PATH = pathlib.Path(os.getenv("SERVER_PATH") or "")
-STEAM_CMD_PATH = pathlib.Path(os.getenv("STEAM_CMD_PATH") or "")
-DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
-API_USERNAME = os.getenv("SERVER_REST_API_USERNAME")
-API_PASSWORD = os.getenv("SERVER_REST_API_PASSWORD")
-
-assert SERVER_PATH
-assert TOKEN
-assert API_USERNAME
-assert API_PASSWORD
+from src.server_conductor import ServerConductor, ServerControlError
 
 COMMAND_PREFIX = "!"
 
-palworld_api = PalworldAPI(API_USERNAME, API_PASSWORD)
+# These interact with the game server
+palworld_api = PalworldAPI(Config.API_USERNAME, Config.API_PASSWORD)
 server_conductor: ServerConductor = ServerConductor(
-    SERVER_PATH, palworld_api, STEAM_CMD_PATH
+    Config.SERVER_PATH, palworld_api, Config.STEAM_CMD_PATH
 )
 
+# These interact with Discord
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
@@ -75,10 +62,20 @@ async def stop_server(ctx):
     """Stop and close the game server."""
 
     wait_time = 10  # seconds
+    extra_wait_allowance = 10  # give it an extra 10 seconds.
     if server_conductor.is_on:
         try:
             palworld_api.shutdown_server(wait_time=wait_time)
             await ctx.send(f"Server will shut down in {wait_time} seconds.")
+
+            await asyncio.sleep(10)
+
+            while server_conductor.is_on and extra_wait_allowance > 0:
+                wait_interval = 2
+                await asyncio.sleep(wait_interval)
+                extra_wait_allowance -= wait_interval
+
+            await ctx.send(f"The server is now off.")
         except Exception as error:
             await ctx.send(error)
     else:
@@ -92,9 +89,15 @@ async def update_server(ctx):
     if server_conductor.is_on:
         await ctx.send(f"The server is running. Shut it down before updating.")
         return
-    await ctx.send(f"This don't work yet.\n\n Coming Soon!")
-    # server_conductor.update_server()
-    # await ctx.send(f"Server Updated.")
+
+    await ctx.send(f"Starting update. Please wait...")
+
+    try:
+        server_conductor.update_server()
+
+        await ctx.send(f"Server update executed successfully.")
+    except ServerControlError as error:
+        await ctx.send(f"Server update failed: {error}")
 
 
-bot.run(TOKEN)
+bot.run(Config.TOKEN)

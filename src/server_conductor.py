@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import pathlib
 import subprocess
 from typing import Optional
@@ -35,21 +36,28 @@ class ServerConductor:
             text=True,
         )
 
-    def update_server(self):
+    def update_server(self) -> None:
 
-        self.server_process = subprocess.Popen(
-            [
-                self.steam_cmd_path,
-                "+force_install_dir",
-                "/home/Steam/steamapps/common/PalServer",
-                "+login",
-                "anonymous",
-                "+app_update",
-                "2394010",
-                "validate",
-                "+quit",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        cmd = [
+            str(self.steam_cmd_path),
+            "+force_install_dir",
+            "/home/Steam/steamapps/common/PalServer",
+            "+login",
+            "anonymous",
+            "+app_update",
+            "2394010",
+            "validate",
+            "+quit",
+        ]
+        try:
+            self.server_process = subprocess.check_call(
+                " ".join(cmd),
+                shell=True,
+            )
+        except subprocess.CalledProcessError as error:
+            if error.returncode == 10:
+                print("Timout... Please try again.")
+            elif error.returncode == 134:
+                print("SteamCMD error occurred. Try again.")
+
+            raise ServerControlError(f"SteamCMD update failed with: {error}")
