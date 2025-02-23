@@ -32,10 +32,19 @@ async def start_server(ctx):
     if not server_conductor.is_on:
         await ctx.send("Checking for updates before starting...")
         server_conductor.update_server()
+
         await ctx.send("Starting server...")
         server_conductor.start_server()
+
+        max_tries = 20
+        tries = 0
         while not server_conductor.is_on:
             asyncio.sleep(1)
+            tries += 1
+            if tries > max_tries:
+                await ctx.send("Timeout occurred while starting up. Contact support.")
+                return
+
         await ctx.send("Server started!")
     else:
         await ctx.send("Server is already running.")
