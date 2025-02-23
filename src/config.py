@@ -1,6 +1,7 @@
 import os
 import pathlib
 from dotenv import load_dotenv
+import requests
 
 
 class Config:
@@ -16,3 +17,12 @@ class Config:
     assert TOKEN
     assert API_USERNAME
     assert API_PASSWORD
+
+    def get_public_ip():
+        try:
+            response = requests.get("https://api.ipify.org")
+            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+            return response.text
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred: {e}")
+            return None

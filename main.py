@@ -30,7 +30,12 @@ async def start_server(ctx):
     """Start the game server."""
 
     if not server_conductor.is_on:
+        await ctx.send("Checking for updates before starting...")
+        server_conductor.update_server()
+        await ctx.send("Starting server...")
         server_conductor.start_server()
+        while not server_conductor.is_on:
+            asyncio.sleep(1)
         await ctx.send("Server started!")
     else:
         await ctx.send("Server is already running.")

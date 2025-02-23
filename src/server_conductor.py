@@ -30,7 +30,7 @@ class ServerConductor:
         """Execute the server binary and keep it alive."""
 
         self.server_process = subprocess.Popen(
-            [self.server_path],
+            [self.server_path, "-publiclobby"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
