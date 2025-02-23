@@ -89,7 +89,7 @@ async def stop_server(ctx):
                 await asyncio.sleep(wait_interval)
                 extra_wait_allowance -= wait_interval
 
-            await ctx.send(f"The server is now off.")
+            await ctx.send("The server is now off.")
         except Exception as error:
             await ctx.send(error)
     else:
@@ -101,17 +101,36 @@ async def update_server(ctx):
     """Update the server. You must stop the server before updating."""
 
     if server_conductor.is_on:
-        await ctx.send(f"The server is running. Shut it down before updating.")
+        await ctx.send("The server is running. Shut it down before updating.")
         return
 
-    await ctx.send(f"Starting update. Please wait...")
+    await ctx.send("Starting update. Please wait...")
 
     try:
         server_conductor.update_server()
 
-        await ctx.send(f"Server update executed successfully.")
+        await ctx.send("Server update executed successfully.")
     except ServerControlError as error:
         await ctx.send(f"Server update failed: {error}")
+
+
+@bot.command(name="info")
+async def get_info(ctx):
+    """Display information about the running server."""
+
+    if server_conductor.is_on:
+        info = palworld_api.get_server_info()
+
+        server_info = (
+            "Server Info:",
+            f"version: {info.version}",
+            f"servername: {info.servername}",
+            f"description: {info.description}",
+            f"worldguid: {info.worldguid}",
+        )
+        await ctx.send("\n".join(server_info))
+    else:
+        await ctx.send("The server is off. We cannot retrieve information.")
 
 
 bot.run(Config.TOKEN)
