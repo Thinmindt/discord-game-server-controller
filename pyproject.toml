@@ -1,0 +1,38 @@
+[tool.black]
+line-length = 100
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+warn_no_return = true
+# Disable unreachable warnings as they can be false positives
+warn_unreachable = false
+# Start with gradual typing - can be made stricter later
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+ignore_missing_imports = true
+strict_optional = true
+
+# Future goal: set these to true once all functions have type hints
+# disallow_untyped_defs = true
+# disallow_incomplete_defs = true
+
+# Allow some flexibility for Discord.py and external libraries
+[[tool.mypy.overrides]]
+module = ["discord.*", "psutil.*"]
+ignore_errors = true

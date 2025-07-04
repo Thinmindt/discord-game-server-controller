@@ -1,15 +1,15 @@
-import json
 from typing import Any, Dict
 import requests
+import json
 
-from src.info_models import ServerInfo
+from src.game_server_interface import GameServerAPI, ServerInfo
 
 
 class PalworldAPIError(Exception):
     """API command failed to send."""
 
 
-class PalworldAPI:
+class PalworldAPI(GameServerAPI):
 
     def __init__(self, username: str, password: str):
         self.headers = {
@@ -31,15 +31,11 @@ class PalworldAPI:
             return True
         return False
 
-    def send_get_request(
-        self, url: str, payload: Dict[Any, Any] = {}
-    ) -> Dict[Any, Any]:
+    def send_get_request(self, url: str, payload: Dict[Any, Any] = {}) -> Dict[str, Any]:
         """Send a generic request to the server. Returns the response as a dict."""
 
-        response = requests.request(
-            "GET", url, headers=self.headers, data=payload, auth=self.auth
-        )
-        response_dict = json.loads(response.text)
+        response = requests.request("GET", url, headers=self.headers, data=payload, auth=self.auth)
+        response_dict: Dict[str, Any] = json.loads(response.text)
         return response_dict
 
     def get_server_info(self) -> ServerInfo:
@@ -48,14 +44,25 @@ class PalworldAPI:
         url = f"{self.base_url}info"
 
         response = self.send_get_request(url)
-        info = ServerInfo(**response)
+
+        # Convert Palworld-specific response to common ServerInfo format
+        info = ServerInfo(
+            server_name=response.get("servername", ""),
+            version=response.get("version", ""),
+            description=response.get("description", ""),
+            additional_info={
+                "worldguid": response.get("worldguid", ""),
+                "game_type": "palworld",
+            },
+        )
 
         return info
 
     def shutdown_server(self, wait_time: int):
-        """Send a command to shut the server down. Returns True if the request sends successfully, else False.
+        """Send a command to shut the server down.
 
-        `wait_time` is the time until the server stops in seconds."""
+        `wait_time` is the time until the server stops in seconds.
+        """
 
         payload = {
             "waittime": wait_time,
@@ -63,9 +70,7 @@ class PalworldAPI:
         }
         url = f"{self.base_url}shutdown"
 
-        response = requests.request(
-            "POST", url, headers=self.headers, json=payload, auth=self.auth
-        )
+        response = requests.request("POST", url, headers=self.headers, json=payload, auth=self.auth)
         if response.status_code != 200:
             raise PalworldAPIError(
                 f"Failed to send shutdown request. Failed with error: {response.status_code}"

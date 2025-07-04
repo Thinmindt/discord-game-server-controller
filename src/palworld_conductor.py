@@ -1,36 +1,37 @@
-from dataclasses import dataclass
 import pathlib
 import subprocess
-from typing import Optional
 
-from src.palworld_api import PalworldAPI
+from src.config import Config
+from src.game_server_interface import (
+    GameServerConductor,
+    GameServerAPI,
+    ServerControlError,
+)
 
 
-class ServerControlError(Exception):
-    """A command issued to the game server failed."""
-
-
-class ServerConductor:
-    """Control a Steam CMD style server. Initialize it with the path to the server executable."""
+class PalworldServerConductor(GameServerConductor):
+    """Control a Palworld Steam CMD style server."""
 
     def __init__(
-        self, server_path: pathlib.Path, api: PalworldAPI, steam_cmd_path: pathlib.Path
+        self,
+        server_path: pathlib.Path,
+        api: GameServerAPI,
+        steam_cmd_path: pathlib.Path,
     ):
-        self.server_path = server_path
-        self.steam_cmd_path = steam_cmd_path
-        self.api = api
-
-    @property
-    def is_on(self):
-        """True if the server is running."""
-
-        return self.api.is_on()
+        super().__init__(server_path, api, steam_cmd_path)
 
     def start_server(self):
         """Execute the server binary and keep it alive."""
 
+        start_cmd = [
+            str(self.server_path),
+            "-publiclobby",
+            f"publicip={Config.get_public_ip()}",
+            "publicport=8211",
+        ]
+        print(f"Starting server with command: \n    {' '.join(start_cmd)}")
         self.server_process = subprocess.Popen(
-            [self.server_path, "-publiclobby"],
+            start_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -61,3 +62,7 @@ class ServerConductor:
                 print("SteamCMD error occurred. Try again.")
 
             raise ServerControlError(f"SteamCMD update failed with: {error}")
+
+    def get_default_port(self) -> int:
+        """Get the default port for Palworld server."""
+        return 8211
