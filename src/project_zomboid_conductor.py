@@ -36,32 +36,22 @@ class ProjectZomboidServerConductor(GameServerConductor):
         """Start Project Zomboid server on Windows."""
         # Find the StartServer64.bat file
         server_dir = self.server_path.parent if self.server_path.is_file() else self.server_path
+        original_batch_file = server_dir / "StartServer64.bat"
 
-        # Look for the batch file
-        batch_files = [
-            server_dir / "StartServer64.bat",
-            server_dir / "StartServer64_nosteam.bat",
-            server_dir / "StartServer32.bat",
-        ]
-
-        batch_file = None
-        for bf in batch_files:
-            if bf.exists():
-                batch_file = bf
-                break
-
-        if not batch_file:
+        if not original_batch_file.exists():
             raise ServerControlError("Could not find Project Zomboid server batch file")
 
-        # Modify the batch file to use our server name and memory settings
-        self._modify_batch_file(batch_file)
+        # Get the batch file to use (original or modified)
+        batch_file = self._modify_batch_file(original_batch_file)
 
         print(f"Starting Project Zomboid server with: {batch_file}")
+        print("Server output will appear below:")
+        print("-" * 50)
+
+        # Start the server process without capturing output so we can see it in real-time
         self.server_process = subprocess.Popen(
             [str(batch_file)],
             cwd=str(server_dir),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             text=True,
         )
 
@@ -76,73 +66,54 @@ class ProjectZomboidServerConductor(GameServerConductor):
         start_cmd = ["bash", str(start_script), "-servername", self.server_name]
 
         print(f"Starting Project Zomboid server with command: {' '.join(start_cmd)}")
+        print("Server output will appear below:")
+        print("-" * 50)
+
         self.server_process = subprocess.Popen(
             start_cmd,
             cwd=str(server_dir),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             text=True,
         )
 
-    def _modify_batch_file(self, batch_file: pathlib.Path) -> None:
-        """Modify the Windows batch file to use custom server name and memory."""
-        # This is a simplified approach - in practice, you might want to create
-        # a custom batch file or modify the existing one more carefully
+    def _modify_batch_file(self, batch_file: pathlib.Path) -> pathlib.Path:
+        """
+        Modify the Windows batch file to use custom server name if needed.
+        Returns the path to the batch file to use (original or modified).
+        """
+        # If using default server name, use original batch file
+        if self.server_name == "servertest":
+            return batch_file
 
-        # For now, we'll create a custom batch file
+        # Check if custom batch file already exists
         custom_batch = batch_file.parent / f"StartServer64_{self.server_name}.bat"
+        if custom_batch.exists():
+            return custom_batch
 
-        # Create classpath
-        classpath_jars = [
-            "java/istack-commons-runtime.jar",
-            "java/jassimp.jar",
-            "java/javacord-2.0.17-shaded.jar",
-            "java/javax.activation-api.jar",
-            "java/jaxb-api.jar",
-            "java/jaxb-runtime.jar",
-            "java/lwjgl.jar",
-            "java/lwjgl-natives-windows.jar",
-            "java/lwjgl-glfw.jar",
-            "java/lwjgl-glfw-natives-windows.jar",
-            "java/lwjgl-jemalloc.jar",
-            "java/lwjgl-jemalloc-natives-windows.jar",
-            "java/lwjgl-opengl.jar",
-            "java/lwjgl-opengl-natives-windows.jar",
-            "java/lwjgl_util.jar",
-            "java/sqlite-jdbc-3.27.2.1.jar",
-            "java/trove-3.0.3.jar",
-            "java/uncommons-maths-1.2.3.jar",
-        ]
+        # Read the original batch file
+        if not batch_file.exists():
+            raise ServerControlError(f"Original batch file not found: {batch_file}")
 
-        java_options = [
-            "-Djava.awt.headless=true",
-            "-Dzomboid.steam=1",
-            "-Dzomboid.znetlog=1",
-            "-XX:+UseZGC",
-            "-XX:-CreateCoredumpOnCrash",
-            "-XX:-OmitStackTraceInFastThrow",
-            f"-Xms{self.memory_gb}g",
-            f"-Xmx{self.memory_gb}g",
-            "-Djava.library.path=natives/;natives/win64/;.",
-        ]
+        with open(batch_file, "r") as f:
+            content = f.read()
 
-        server_args = [
-            "zombie.network.GameServer",
-            "-servername",
-            self.server_name,
-            "-statistic",
-            "0",
-        ]
+        # Only modify the server name parameter in the GameServer command line
+        # Look for the pattern: zombie.network.GameServer and add -servername after it
+        if "zombie.network.GameServer" in content:
+            # Replace zombie.network.GameServer with zombie.network.GameServer -servername NAME
+            modified_content = content.replace(
+                "zombie.network.GameServer",
+                f"zombie.network.GameServer -servername {self.server_name}",
+            )
 
-        java_cmd = f"""@setlocal enableextensions
-@cd /d "%~dp0"
-SET PZ_CLASSPATH={";".join(classpath_jars)}
+            # Write the modified batch file
+            with open(custom_batch, "w") as f:
+                f.write(modified_content)
 
-".\\jre64\\bin\\java.exe" {" ".join(java_options)} -cp %PZ_CLASSPATH% {" ".join(server_args)}
-PAUSE"""
-
-        with open(custom_batch, "w") as f:
-            f.write(java_cmd)
+            return custom_batch
+        else:
+            raise ServerControlError(
+                f"Could not find 'zombie.network.GameServer' in batch file: {batch_file}"
+            )
 
     def update_server(self) -> None:
         """Update the Project Zomboid server using SteamCMD."""
