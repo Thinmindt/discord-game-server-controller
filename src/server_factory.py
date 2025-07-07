@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from src.config import Config
 from src.game_server_interface import GameServerManager
 from src.palworld_manager import PalworldServerManager
@@ -50,20 +50,6 @@ class ServerFactory:
 
         else:
             raise ValueError(f"Unsupported game type: {game_type}")
-
-    # Legacy method for backward compatibility
-    @staticmethod
-    def create_server_instances(game_type: str) -> Tuple[GameServerManager, GameServerManager]:
-        """
-        Deprecated: Use create_server_manager instead.
-
-        This method is kept for backward compatibility but will be removed in a future version.
-        """
-        manager = ServerFactory.create_server_manager(game_type)
-
-        # For backward compatibility, return the manager twice
-        # The calling code expects (api, conductor) but now we have unified manager
-        return manager, manager
 
     @staticmethod
     def get_supported_games() -> Dict[str, List[str]]:

@@ -3,9 +3,8 @@
 import tempfile
 import pathlib
 import pytest
-from unittest.mock import MagicMock
 
-from src.project_zomboid_conductor import ProjectZomboidServerConductor
+from src.project_zomboid_manager import ProjectZomboidServerManager
 
 
 def test_batch_file_default_servername():
@@ -24,17 +23,15 @@ PAUSE
 """
         batch_file.write_text(batch_content)
 
-        # Create conductor with default server name
-        mock_api = MagicMock()
-        conductor = ProjectZomboidServerConductor(
+        # Create manager with default server name
+        manager = ProjectZomboidServerManager(
             server_path=temp_path,
-            api=mock_api,
             steam_cmd_path=pathlib.Path("steamcmd"),
             server_name="servertest",  # default name
         )
 
         # Should return original batch file
-        result = conductor._modify_batch_file(batch_file)
+        result = manager._modify_batch_file(batch_file)
         assert result == batch_file
         assert result.exists()
         # Should not create any custom batch files
@@ -58,17 +55,15 @@ PAUSE
 """
         batch_file.write_text(batch_content)
 
-        # Create conductor with custom server name
-        mock_api = MagicMock()
-        conductor = ProjectZomboidServerConductor(
+        # Create manager with custom server name
+        manager = ProjectZomboidServerManager(
             server_path=temp_path,
-            api=mock_api,
             steam_cmd_path=pathlib.Path("steamcmd"),
             server_name="MyCustomServer",
         )
 
         # Should create and return custom batch file
-        result = conductor._modify_batch_file(batch_file)
+        result = manager._modify_batch_file(batch_file)
         custom_batch = temp_path / "StartServer64_MyCustomServer.bat"
         assert result == custom_batch
         assert custom_batch.exists()
@@ -108,17 +103,15 @@ PAUSE
 """
         custom_batch.write_text(custom_content)
 
-        # Create conductor
-        mock_api = MagicMock()
-        conductor = ProjectZomboidServerConductor(
+        # Create manager
+        manager = ProjectZomboidServerManager(
             server_path=temp_path,
-            api=mock_api,
             steam_cmd_path=pathlib.Path("steamcmd"),
             server_name="MyServer",
         )
 
         # Should return existing custom batch file
-        result = conductor._modify_batch_file(batch_file)
+        result = manager._modify_batch_file(batch_file)
         assert result == custom_batch
         # Content should remain unchanged
         assert custom_batch.read_text() == custom_content
@@ -139,11 +132,9 @@ PAUSE
 """
         batch_file.write_text(batch_content)
 
-        # Create conductor
-        mock_api = MagicMock()
-        conductor = ProjectZomboidServerConductor(
+        # Create manager
+        manager = ProjectZomboidServerManager(
             server_path=temp_path,
-            api=mock_api,
             steam_cmd_path=pathlib.Path("steamcmd"),
             server_name="MyServer",
         )
@@ -152,4 +143,4 @@ PAUSE
         from src.game_server_interface import ServerControlError
 
         with pytest.raises(ServerControlError, match="Could not find 'zombie.network.GameServer'"):
-            conductor._modify_batch_file(batch_file)
+            manager._modify_batch_file(batch_file)
