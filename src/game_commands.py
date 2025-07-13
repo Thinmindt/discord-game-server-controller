@@ -89,7 +89,7 @@ class GameServerCommands:
                 return
 
             # Wait for server to start up
-            max_tries = 20
+            max_tries = 5 * 60  # 5 minutes
             tries = 0
             while tries < max_tries and not manager.is_on():
                 await asyncio.sleep(1)
