@@ -106,12 +106,13 @@ class ProjectZomboidServerManager(GameServerManager):
         print("Server output will appear below:")
         print("-" * 50)
 
-        # Start the server process with output capture for monitoring
+        # Start the server process with input/output capture for monitoring
         self.server_process = subprocess.Popen(
             [str(batch_file)],
             cwd=str(server_dir),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE,
             text=True,
             bufsize=1,
         )
@@ -135,6 +136,7 @@ class ProjectZomboidServerManager(GameServerManager):
             cwd=str(server_dir),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE,
             text=True,
             bufsize=1,
         )
@@ -168,6 +170,10 @@ class ProjectZomboidServerManager(GameServerManager):
                     print("\n🎉 Project Zomboid server has started successfully!")
                     print("-" * 50)
 
+                # Check for shutdown messages
+                elif "Saving world" in line or "Server shutdown" in line or "Goodbye" in line:
+                    print(f"🛑 {line}")
+
                 # Check for port information
                 elif "Server is listening on port" in line:
                     print(f"📡 {line}")
@@ -183,7 +189,7 @@ class ProjectZomboidServerManager(GameServerManager):
                 self.server_process.stdout.close()
 
     def shutdown_server(self, wait_time: int = 30) -> None:
-        """Shut down the server by terminating the process."""
+        """Shut down the server gracefully using the quit command."""
         if not self.server_process:
             raise ServerControlError("No server process to shut down")
 
@@ -192,19 +198,44 @@ class ProjectZomboidServerManager(GameServerManager):
         # Stop monitoring
         self._stop_monitoring = True
 
-        # Attempt graceful shutdown first
-        self.server_process.terminate()
-
+        # Send graceful shutdown command to the server
         try:
+            # For Project Zomboid, we can send 'quit' command to stdin
+            if self.server_process.stdin:
+                print("Sending 'quit' command to server...")
+                self.server_process.stdin.write("quit\n")
+                self.server_process.stdin.flush()
+                # Close stdin to signal end of input
+                self.server_process.stdin.close()
+
             # Wait for graceful shutdown
             self.server_process.wait(timeout=wait_time)
             print("Server shut down gracefully")
+
         except subprocess.TimeoutExpired:
-            # Force kill if graceful shutdown failed
-            print(f"Graceful shutdown timed out after {wait_time}s, force killing...")
-            self.server_process.kill()
-            self.server_process.wait()
-            print("Server force killed")
+            print(f"Graceful shutdown timed out after {wait_time}s, terminating process...")
+            self.server_process.terminate()
+
+            try:
+                self.server_process.wait(timeout=10)
+                print("Server terminated")
+            except subprocess.TimeoutExpired:
+                # Force kill as last resort
+                print("Force killing server process...")
+                self.server_process.kill()
+                self.server_process.wait()
+                print("Server force killed")
+
+        except Exception as e:
+            print(f"Error during shutdown: {e}, falling back to process termination...")
+            self.server_process.terminate()
+            try:
+                self.server_process.wait(timeout=10)
+                print("Server terminated")
+            except subprocess.TimeoutExpired:
+                self.server_process.kill()
+                self.server_process.wait()
+                print("Server force killed")
 
         self.server_process = None
         self._server_started = False

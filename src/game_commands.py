@@ -127,7 +127,7 @@ class GameServerCommands:
             try:
                 await ctx.send(f"🛑 Shutting down {display_name} server...")
                 manager.shutdown_server(wait_time=wait_time)
-                await ctx.send(f"✅ {display_name} server will turn off in {wait_time} seconds.")
+                await ctx.send(f"✅ {display_name} server has been shut down.")
             except ServerControlError as e:
                 await ctx.send(f"❌ Error during shutdown: {e}")
         else:
