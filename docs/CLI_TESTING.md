@@ -4,11 +4,12 @@ This command line interface allows you to test all Discord bot commands locally 
 
 ## Features
 
-- 🚀 **Complete Command Coverage**: Test all Discord bot commands (`start`, `stop`, `restart`, `update`, `info`, `ip`, `games`)
+- 🚀 **Complete Command Coverage**: Test all Discord bot commands (`start`, `stop`, `restart`, `update`, `info`, `ip`, `games`, `cmd`)
 - 🎮 **Multi-Game Support**: Test commands for both Palworld and Project Zomboid
 - 🤖 **Mock Discord Context**: Simulates Discord bot responses
 - 💻 **Interactive CLI**: Real-time command testing with immediate feedback
 - 🔄 **Async Support**: Proper async/await handling like the real Discord bot
+- 📨 **Server Commands**: Send ad-hoc admin commands to running game servers
 
 ## Quick Start
 
@@ -56,6 +57,15 @@ Version: 1.0.0
 💬 You: ip pz
 🤖 Bot: The Project Zomboid server host IP address is: 192.168.1.100:16261
 
+💬 You: cmd pz teleport player1 player2
+🤖 Bot: Sending command to Project Zomboid server: teleport player1 player2
+🤖 Bot: Server response:
+```
+
+Player player1 teleported to player2
+
+```
+
 💬 You: quit
 👋 Goodbye!
 ```
@@ -70,6 +80,7 @@ Version: 1.0.0
 - `update [game_type]` - Update a game server (must be stopped first)
 - `info [game_type]` - Get server information
 - `ip [game_type]` - Get server IP and port
+- `cmd <game_type> <command> [args...]` - Send admin command to running server
 - `games` - List all supported games
 
 ### CLI Commands

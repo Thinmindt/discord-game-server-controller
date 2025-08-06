@@ -68,6 +68,21 @@ class GameServerManager(ABC):
         """Get the default port for this game server."""
         pass
 
+    def send_server_command(self, command: str) -> str:
+        """
+        Send a command to the running game server.
+
+        Args:
+            command: The command to send to the server
+
+        Returns:
+            A message indicating the result of the command
+
+        Raises:
+            ServerControlError: If the server doesn't support commands or command fails
+        """
+        raise ServerControlError("This game server does not support ad-hoc commands")
+
 
 class ServerControlError(Exception):
     """A command issued to the game server failed."""

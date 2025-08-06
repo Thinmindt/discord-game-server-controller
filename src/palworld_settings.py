@@ -36,43 +36,33 @@ class PalWorldSettings:
         """Parse the options string into a dictionary"""
         settings = {}
 
-        # Handle nested parentheses for arrays
-        in_array = False
-        array_start = 0
-        current_pos = 0
-        buffer = ""
-
-        while current_pos < len(options_str):
-            char = options_str[current_pos]
-
-            if char == "(" and not in_array:
-                in_array = True
-                array_start = current_pos
-            elif char == ")" and in_array:
-                in_array = False
-                buffer += options_str[array_start : current_pos + 1]
-            elif not in_array:
-                buffer += char
-
-            current_pos += 1
-
-        # Split by commas, but only top-level commas
+        # Split by commas, but respect parentheses for arrays
         key_values = []
-        start = 0
-        for i, char in enumerate(buffer):
-            if char == "," and not in_array:
-                key_values.append(buffer[start:i].strip())
-                start = i + 1
+        current = ""
+        paren_count = 0
+
+        for char in options_str:
+            if char == "(":
+                paren_count += 1
+            elif char == ")":
+                paren_count -= 1
+
+            if char == "," and paren_count == 0:
+                if current.strip():
+                    key_values.append(current.strip())
+                current = ""
+            else:
+                current += char
 
         # Add the last key-value pair
-        if start < len(buffer):
-            key_values.append(buffer[start:].strip())
+        if current.strip():
+            key_values.append(current.strip())
 
         # Process each key-value pair
         for kv in key_values:
             if "=" in kv:
                 key, value = kv.split("=", 1)
-                settings[key] = self._parse_value(value)
+                settings[key.strip()] = self._parse_value(value.strip())
 
         return settings
 
@@ -124,8 +114,17 @@ class PalWorldSettings:
         if isinstance(value, str):
             return f'"{value}"'
 
+        if isinstance(value, list):
+            # Format array values
+            formatted_items = []
+            for item in value:
+                formatted_items.append(self._format_value(item))
+            return f"({','.join(formatted_items)})"
+
         if isinstance(value, float):
-            return f"{value:.6f}"
+            # Format float without unnecessary trailing zeros
+            formatted = f"{value:.6f}".rstrip("0").rstrip(".")
+            return formatted
 
         # Numbers and other types
         return str(value)

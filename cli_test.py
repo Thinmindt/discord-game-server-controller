@@ -70,29 +70,37 @@ class DiscordBotCLI:
         ctx = MockContext()
         await game_commands.cmd_games(ctx, args)
 
+    async def cmd_cmd(self, args: List[str]) -> None:
+        """Send an ad-hoc admin command to the running game server."""
+        ctx = MockContext()
+        await game_commands.cmd_cmd(ctx, args)
+
     def cmd_help(self, args: List[str]) -> None:
         """Show help information."""
         help_text = """
 🤖 Discord Bot CLI Commands:
 
 Game Server Commands:
-  start [game_type]    - Start a game server (e.g., 'start pz', 'start palworld')
-  stop [game_type]     - Stop a game server
-  restart [game_type]  - Restart a game server
-  update [game_type]   - Update a game server (must be stopped first)
-  info [game_type]     - Get server information
-  ip [game_type]       - Get server IP and port
-  games               - List all supported games
+  start [game_type]         - Start a game server (e.g., 'start pz', 'start palworld')
+  stop [game_type]          - Stop a game server
+  restart [game_type]       - Restart a game server
+  update [game_type]        - Update a game server (must be stopped first)
+  info [game_type]          - Get server information
+  ip [game_type]            - Get server IP and port
+  cmd <game_type> <command> - Send admin command to running server
+  games                     - List all supported games
 
 CLI Commands:
-  help                - Show this help message
-  quit / exit         - Exit the CLI
+  help                      - Show this help message
+  quit / exit               - Exit the CLI
 
 Examples:
-  start pz            - Start Project Zomboid server
-  stop palworld       - Stop Palworld server
-  info                - Get info for default game server
-  games               - List all supported games
+  start pz                     - Start Project Zomboid server
+  stop palworld                - Stop Palworld server
+  info                         - Get info for default game server
+  cmd pz teleport player1 player2  - Teleport player1 to player2 in Project Zomboid
+  cmd pz servermsg "Hello all"      - Broadcast message in Project Zomboid
+  games                        - List all supported games
 
 Note: If no game_type is specified, the default game will be used.
 Default game: {Config.DEFAULT_GAME}
@@ -134,6 +142,8 @@ Default game: {Config.DEFAULT_GAME}
                     await self.cmd_ip(args)
                 elif command == "games":
                     await self.cmd_games(args)
+                elif command == "cmd":
+                    await self.cmd_cmd(args)
                 else:
                     print(f"❌ Unknown command: {command}")
                     print("Type 'help' for available commands.")

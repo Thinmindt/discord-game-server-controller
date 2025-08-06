@@ -2,6 +2,7 @@ import os
 import pathlib
 import subprocess
 import threading
+import time
 from typing import Optional, List
 
 from src.game_server_interface import (
@@ -28,6 +29,7 @@ class ProjectZomboidServerManager(GameServerManager):
         self._server_started = False
         self._server_info: Optional[ServerInfo] = None
         self._log_lines: List[str] = []
+        self._log_lines_lock = threading.Lock()  # Add thread safety for log lines
         self._monitor_thread: Optional[threading.Thread] = None
         self._stop_monitoring = False
 
@@ -158,11 +160,16 @@ class ProjectZomboidServerManager(GameServerManager):
                 # Print output in real-time
                 print(line)
 
-                # Store recent log lines
-                self._log_lines.append(line)
-                # Keep only last 100 lines to avoid memory issues
-                if len(self._log_lines) > 100:
-                    self._log_lines.pop(0)
+                # Store recent log lines with thread safety
+                with self._log_lines_lock:
+                    self._log_lines.append(line)
+                    # Keep only last 100 lines to avoid memory issues
+                    if len(self._log_lines) > 100:
+                        self._log_lines.pop(0)
+
+                # Additional debug for command-related output
+                if "command entered via server console" in line or "User " in line:
+                    print(f"DEBUG MONITOR: Command-related line captured: {line}")
 
                 # Check for server startup completion
                 if "*** SERVER STARTED ****" in line:
@@ -313,3 +320,159 @@ class ProjectZomboidServerManager(GameServerManager):
     def get_default_port(self) -> int:
         """Get the default port for Project Zomboid server."""
         return 16261
+
+    def send_server_command(self, command: str) -> str:
+        """
+        Send a command to the running Project Zomboid server.
+
+        Args:
+            command: The admin command to send to the server
+
+        Returns:
+            A message indicating the result of the command
+
+        Raises:
+            ServerControlError: If the server is not running or command fails
+        """
+        if not self.is_on():
+            raise ServerControlError("Cannot send command: Server is not running")
+
+        if not self.server_process or not self.server_process.stdin:
+            raise ServerControlError("Cannot send command: No stdin connection to server")
+
+        try:
+            # Store marker for tracking new output - use timestamp-based approach
+            with self._log_lines_lock:
+                # Get the last few lines to use as a marker
+                if self._log_lines:
+                    marker_lines = self._log_lines[-2:]  # Use last 2 lines as marker
+                else:
+                    marker_lines = []
+                buffer_size_before = len(self._log_lines)
+                last_few_lines = self._log_lines[-3:] if self._log_lines else []
+
+            print(f"DEBUG: Initial buffer size: {buffer_size_before}")
+            print(f"DEBUG: Process alive: {self.server_process.poll() is None}")
+            print(
+                f"DEBUG: Monitor thread alive: {self._monitor_thread.is_alive() if self._monitor_thread else False}"
+            )
+            print(f"DEBUG: Marker lines: {marker_lines}")
+
+            # Send the command to the server
+            command_to_send = f"{command}\n"
+            print(f"Sending command to server: {command}")
+            self.server_process.stdin.write(command_to_send)
+            self.server_process.stdin.flush()
+            print(f"DEBUG: Command sent and flushed successfully")
+
+            # Wait for the server to process the command and generate output
+            max_wait_time = 5.0  # Maximum time to wait for output
+            check_interval = 0.1  # Check every 100ms
+            waited_time = 0.0
+            new_lines_found = []
+
+            # Keep checking for new output until we get some or timeout
+            while waited_time < max_wait_time:
+                time.sleep(check_interval)
+                waited_time += check_interval
+
+                # Check for new lines after the marker position
+                with self._log_lines_lock:
+                    current_buffer = self._log_lines.copy()
+                    recent_lines = self._log_lines[-5:] if self._log_lines else []
+
+                # Find new lines that appeared after our marker
+                new_lines_found = []
+                if marker_lines:
+                    # Find the position of our marker
+                    marker_found = False
+                    for i, line in enumerate(current_buffer):
+                        if not marker_found:
+                            # Look for the last marker line
+                            if line == marker_lines[-1]:
+                                marker_found = True
+                                # Collect everything after the marker
+                                new_lines_found = current_buffer[i + 1 :]
+                                break
+                else:
+                    # No marker (empty buffer before), so everything is new
+                    new_lines_found = current_buffer
+
+                if waited_time % 1.0 < check_interval:  # Debug every second
+                    print(f"DEBUG: After {waited_time:.1f}s - New logs: {len(new_lines_found)}")
+
+                if new_lines_found:
+                    # We got some output, wait a bit more to capture any additional lines
+                    print(
+                        f"DEBUG: Found {len(new_lines_found)} new log lines, waiting 0.5s more..."
+                    )
+                    print(f"DEBUG: New content: {new_lines_found}")
+                    time.sleep(0.5)  # Give time for additional output
+                    # Re-check for any additional lines after the wait
+                    with self._log_lines_lock:
+                        final_buffer = self._log_lines.copy()
+                    # Get final new lines after marker
+                    final_new_lines = []
+                    if marker_lines:
+                        marker_found = False
+                        for i, line in enumerate(final_buffer):
+                            if not marker_found:
+                                if line == marker_lines[-1]:
+                                    marker_found = True
+                                    final_new_lines = final_buffer[i + 1 :]
+                                    break
+                    else:
+                        final_new_lines = final_buffer
+                    new_lines_found = final_new_lines
+                    break
+
+            # Capture any new log output since the command was sent
+            with self._log_lines_lock:
+                final_buffer = self._log_lines.copy()
+                all_recent_lines = self._log_lines[-10:] if self._log_lines else []
+
+            # If we didn't find new lines in the loop, do a final check
+            if not new_lines_found:
+                if marker_lines:
+                    marker_found = False
+                    for i, line in enumerate(final_buffer):
+                        if not marker_found:
+                            if line == marker_lines[-1]:
+                                marker_found = True
+                                new_lines_found = final_buffer[i + 1 :]
+                                break
+                else:
+                    new_lines_found = final_buffer
+
+            print(f"DEBUG: Final - Captured {len(new_lines_found)} new lines")
+
+            if new_lines_found:
+                print(f"DEBUG: New log lines: {new_lines_found}")
+                # Filter and format the response
+                response_lines = []
+                for line in new_lines_found:
+                    line = line.strip()
+                    if line:
+                        # Clean up log formatting - extract the actual message
+                        if "LOG  : General" in line and ">" in line:
+                            # Extract message after the timestamp
+                            parts = line.split("> ", 2)
+                            if len(parts) >= 3:
+                                message = parts[2].strip()
+                                # Skip the echo of the command itself
+                                if not message.startswith("command entered via server console"):
+                                    response_lines.append(message)
+                            else:
+                                response_lines.append(line)
+                        else:
+                            response_lines.append(line)
+
+                if response_lines:
+                    return "\n".join(response_lines)
+                else:
+                    return f"Command '{command}' sent successfully (no formatted output captured)"
+            else:
+                return f"Command '{command}' sent successfully (no output captured after {max_wait_time}s)"
+
+        except Exception as e:
+            raise ServerControlError(f"Failed to send command '{command}': {e}")

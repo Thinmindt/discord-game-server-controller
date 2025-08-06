@@ -29,13 +29,17 @@ class GameServerCommands:
 
     def get_server_manager(self, game_type: str) -> GameServerManager:
         """Get or create server manager for the specified game type."""
-        game_type = game_type.lower()
+        # First find the canonical game name for this game type
+        canonical_name = self._find_supported_game(game_type)
+        if not canonical_name:
+            raise ValueError(f"Unsupported game type: {game_type}")
 
-        if game_type not in self.server_managers:
+        # Use the canonical name as the key to ensure aliases share the same manager
+        if canonical_name not in self.server_managers:
             manager = cast(GameServerManager, ServerFactory.create_server_manager(game_type))
-            self.server_managers[game_type] = manager
+            self.server_managers[canonical_name] = manager
 
-        return self.server_managers[game_type]
+        return self.server_managers[canonical_name]
 
     def _find_supported_game(self, game_type: str) -> Optional[str]:
         """Find the game type in supported games, return the canonical name."""
@@ -45,7 +49,6 @@ class GameServerCommands:
         for game_name, aliases in supported_games.items():
             if game_type_lower in aliases:
                 return cast(str, game_name)
-        return None
         return None
 
     def _get_all_supported_aliases(self) -> List[str]:
@@ -168,7 +171,7 @@ class GameServerCommands:
                 manager.start_server()
 
                 # Wait for startup
-                max_tries = 20
+                max_tries = 5 * 60  # 5 minutes
                 tries = 0
                 while tries < max_tries and not manager.is_on():
                     await asyncio.sleep(1)
@@ -310,6 +313,54 @@ class GameServerCommands:
             + "\n".join(game_list)
             + f"\n\nDefault game: `{Config.DEFAULT_GAME}`"
         )
+
+    async def cmd_cmd(self, ctx: MessageContext, args: List[str]) -> None:
+        """Send an ad-hoc admin command to the running game server."""
+        if len(args) < 2:
+            await ctx.send(
+                "❌ Usage: `cmd <game_type> <command> [args...]`\n"
+                "Example: `cmd pz teleport player1 player2`\n"
+                'Example: `cmd pz servermsg "Server maintenance in 5 minutes"`\n'
+                "See https://pzwiki.net/wiki/Admin_commands for Project Zomboid commands."
+            )
+            return
+
+        game_type = args[0]
+        command_parts = args[1:]
+        command = " ".join(command_parts)
+
+        # Check if the game type is supported
+        found_game = self._find_supported_game(game_type)
+        if not found_game:
+            supported = self._get_all_supported_aliases()
+            await ctx.send(
+                f"Unsupported game type '{game_type}'. Supported games: {', '.join(supported)}"
+            )
+            return
+
+        try:
+            manager = self.get_server_manager(game_type)
+            display_name = self._format_game_name(found_game)
+        except ValueError as e:
+            await ctx.send(f"Error: {str(e)}")
+            return
+
+        if not manager.is_on():
+            await ctx.send(f"⚠️ The {display_name} server is not running. Start it first.")
+            return
+
+        try:
+            await ctx.send(f"📨 Sending command to {display_name} server: `{command}`")
+            result = manager.send_server_command(command)
+
+            # Limit response length to avoid Discord message limits
+            if len(result) > 1500:
+                result = result[:1500] + "... (output truncated)"
+
+            await ctx.send(f"📥 Server response:\n```\n{result}\n```")
+
+        except ServerControlError as e:
+            await ctx.send(f"❌ Command failed: {e}")
 
 
 # Global instance that can be shared

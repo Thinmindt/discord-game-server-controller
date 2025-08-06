@@ -104,6 +104,22 @@ async def list_games(ctx: commands.Context):
     await game_commands.cmd_games(discord_ctx, [])
 
 
+@bot.command(name="cmd")
+async def send_server_command(ctx: commands.Context, *args):
+    """Send an ad-hoc admin command to the running game server.
+
+    Usage: !cmd <game_type> <command> [args...]
+    Examples:
+      !cmd pz teleport player1 player2
+      !cmd pz servermsg "Server maintenance in 5 minutes"
+      !cmd pz additem "player1" "Base.Axe" 5
+
+    See https://pzwiki.net/wiki/Admin_commands for Project Zomboid commands.
+    """
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_cmd(discord_ctx, list(args))
+
+
 def main():
     """Main entry point for the Discord bot."""
     if Config.TOKEN is None:

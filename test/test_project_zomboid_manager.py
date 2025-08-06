@@ -96,8 +96,85 @@ PAUSE
         assert "@echo off" in modified_content
 
 
+def test_project_zomboid_send_server_command():
+    """Test sending commands to a running Project Zomboid server."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = pathlib.Path(temp_dir)
+
+        manager = ProjectZomboidServerManager(
+            server_path=temp_path,
+            steam_cmd_path=temp_path / "steamcmd",
+            server_name="TestServer",
+        )
+
+        # Test command when server is not running
+        from src.game_server_interface import ServerControlError
+
+        try:
+            manager.send_server_command("help")
+            assert False, "Should have raised ServerControlError"
+        except ServerControlError as e:
+            assert "Server is not running" in str(e)
+
+        # Mock a running server process
+        mock_process = MagicMock()
+        mock_process.poll.return_value = None  # Process is running
+        mock_stdin = MagicMock()
+        mock_process.stdin = mock_stdin
+
+        manager.server_process = mock_process
+        manager._server_started = True
+        manager._log_lines = ["LOG: Initial log", "LOG: Some other log"]
+
+        # Test successful command with no new logs (existing test)
+        result = manager.send_server_command("help")
+
+        # Verify the command was written to stdin
+        mock_stdin.write.assert_called_with("help\n")
+        mock_stdin.flush.assert_called()
+
+        # Should return success message
+        assert "help" in result
+        assert "sent successfully" in result
+
+        # Test command with server response logs
+        # Reset the stdin mock for next test
+        mock_stdin.reset_mock()
+
+        # Simulate server logs being added during command execution
+        initial_log_count = len(manager._log_lines)
+
+        def simulate_log_output(*args, **kwargs):
+            # Simulate logs appearing after command is sent
+            manager._log_lines.extend(
+                [
+                    'LOG  : General     , 1754248298938> 2,194,760,255> command entered via server console (System.in): "setaccesslevel grug none"',
+                    "LOG  : General     , 1754248298970> 2,194,760,287> User grug no longer has access level",
+                ]
+            )
+
+        # Mock the stdin.write to trigger log simulation
+        mock_stdin.write.side_effect = simulate_log_output
+
+        result = manager.send_server_command("setaccesslevel grug none")
+
+        # Should capture and format the server response
+        assert "User grug no longer has access level" in result
+        # Should not include the command echo
+        assert "command entered via server console" not in result
+
+        # Test command without stdin connection
+        manager.server_process.stdin = None
+        try:
+            manager.send_server_command("test")
+            assert False, "Should have raised ServerControlError"
+        except ServerControlError as e:
+            assert "No stdin connection" in str(e)
+
+
 if __name__ == "__main__":
     test_project_zomboid_manager_creation()
     test_project_zomboid_manager_startup_detection()
     test_project_zomboid_manager_batch_file_logic()
+    test_project_zomboid_send_server_command()
     print("✅ All Project Zomboid manager tests passed!")
