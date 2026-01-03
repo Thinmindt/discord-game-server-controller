@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from typing import Optional
+from typing import Any, Optional
 
 from src.config import Config
 from src.game_commands import game_commands
@@ -11,7 +11,7 @@ COMMAND_PREFIX = "!"
 class DiscordContext:
     """Adapter to make Discord context compatible with MessageContext protocol."""
 
-    def __init__(self, ctx: commands.Context):
+    def __init__(self, ctx: commands.Context[Any]) -> None:
         self.ctx = ctx
 
     async def send(self, message: str) -> None:
@@ -26,7 +26,7 @@ bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
 
 @bot.command(name="start")
-async def start_server(ctx: commands.Context, game_type: Optional[str] = None):
+async def start_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
     """Start the game server.
 
     Usage: !start [game_type]
@@ -38,7 +38,7 @@ async def start_server(ctx: commands.Context, game_type: Optional[str] = None):
 
 
 @bot.command(name="restart")
-async def restart_server(ctx: commands.Context, game_type: Optional[str] = None):
+async def restart_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
     """Restart the game server.
 
     Usage: !restart [game_type]
@@ -50,7 +50,7 @@ async def restart_server(ctx: commands.Context, game_type: Optional[str] = None)
 
 
 @bot.command(name="stop")
-async def stop_server(ctx: commands.Context, game_type: Optional[str] = None):
+async def stop_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
     """Stop and close the game server.
 
     Usage: !stop [game_type]
@@ -62,7 +62,7 @@ async def stop_server(ctx: commands.Context, game_type: Optional[str] = None):
 
 
 @bot.command(name="update")
-async def update_server(ctx: commands.Context, game_type: Optional[str] = None):
+async def update_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
     """Update the server. You must stop the server before updating.
 
     Usage: !update [game_type]
@@ -74,7 +74,7 @@ async def update_server(ctx: commands.Context, game_type: Optional[str] = None):
 
 
 @bot.command(name="info")
-async def get_info(ctx: commands.Context, game_type: Optional[str] = None):
+async def get_info(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
     """Display information about the running server.
 
     Usage: !info [game_type]
@@ -86,7 +86,7 @@ async def get_info(ctx: commands.Context, game_type: Optional[str] = None):
 
 
 @bot.command(name="ip")
-async def get_ip(ctx: commands.Context, game_type: Optional[str] = None):
+async def get_ip(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
     """Display the public IP address of the host.
 
     Usage: !ip [game_type]
@@ -98,14 +98,14 @@ async def get_ip(ctx: commands.Context, game_type: Optional[str] = None):
 
 
 @bot.command(name="games")
-async def list_games(ctx: commands.Context):
+async def list_games(ctx: commands.Context[Any]) -> None:
     """List all supported game types and their aliases."""
     discord_ctx = DiscordContext(ctx)
     await game_commands.cmd_games(discord_ctx, [])
 
 
 @bot.command(name="cmd")
-async def send_server_command(ctx: commands.Context, *args):
+async def send_server_command(ctx: commands.Context[Any], *args: str) -> None:
     """Send an ad-hoc admin command to the running game server.
 
     Usage: !cmd <game_type> <command> [args...]
@@ -121,7 +121,7 @@ async def send_server_command(ctx: commands.Context, *args):
 
 
 @bot.command(name="backup")
-async def backup_server(ctx: commands.Context, game_type: Optional[str] = None):
+async def backup_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
     """Create a backup of the game server data.
 
     Usage: !backup [game_type]
@@ -134,7 +134,7 @@ async def backup_server(ctx: commands.Context, game_type: Optional[str] = None):
     await game_commands.cmd_backup(discord_ctx, args)
 
 
-def main():
+def main() -> None:
     """Main entry point for the Discord bot."""
     if Config.TOKEN is None:
         raise ValueError("DISCORD_TOKEN environment variable not set")

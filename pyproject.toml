@@ -15,24 +15,23 @@ extend-exclude = '''
 )/
 '''
 
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+exclude = [".git", "__pycache__", ".venv", "build", "dist"]
+
 [tool.mypy]
 python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-warn_no_return = true
-# Disable unreachable warnings as they can be false positives
-warn_unreachable = false
-# Start with gradual typing - can be made stricter later
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
+strict = true
 ignore_missing_imports = true
-strict_optional = true
+exclude = ["test/", "tests/", "cli_test.py", "test_buffer_fix.py", "debug_command_test.py"]
 
-# Future goal: set these to true once all functions have type hints
-# disallow_untyped_defs = true
-# disallow_incomplete_defs = true
-
-# Allow some flexibility for Discord.py and external libraries
 [[tool.mypy.overrides]]
 module = ["discord.*", "psutil.*"]
 ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["test", "."]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+pythonpath = ["."]

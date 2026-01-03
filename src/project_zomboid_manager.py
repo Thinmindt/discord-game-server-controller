@@ -27,7 +27,7 @@ class ProjectZomboidServerManager(GameServerManager):
         super().__init__(server_path, steam_cmd_path)
         self.server_name = server_name
         self.memory_gb = memory_gb
-        self.server_process: Optional[subprocess.Popen] = None
+        self.server_process: Optional[subprocess.Popen[str]] = None
         self._server_started = False
         self._server_info: Optional[ServerInfo] = None
         self._log_lines: List[str] = []
@@ -351,12 +351,12 @@ class ProjectZomboidServerManager(GameServerManager):
                 else:
                     marker_lines = []
                 buffer_size_before = len(self._log_lines)
-                last_few_lines = self._log_lines[-3:] if self._log_lines else []
 
             print(f"DEBUG: Initial buffer size: {buffer_size_before}")
             print(f"DEBUG: Process alive: {self.server_process.poll() is None}")
             print(
-                f"DEBUG: Monitor thread alive: {self._monitor_thread.is_alive() if self._monitor_thread else False}"
+                "DEBUG: Monitor thread alive: "
+                f"{self._monitor_thread.is_alive() if self._monitor_thread else False}"
             )
             print(f"DEBUG: Marker lines: {marker_lines}")
 
@@ -365,13 +365,13 @@ class ProjectZomboidServerManager(GameServerManager):
             print(f"Sending command to server: {command}")
             self.server_process.stdin.write(command_to_send)
             self.server_process.stdin.flush()
-            print(f"DEBUG: Command sent and flushed successfully")
+            print("DEBUG: Command sent and flushed successfully")
 
             # Wait for the server to process the command and generate output
             max_wait_time = 5.0  # Maximum time to wait for output
             check_interval = 0.1  # Check every 100ms
             waited_time = 0.0
-            new_lines_found = []
+            new_lines_found: List[str] = []
 
             # Keep checking for new output until we get some or timeout
             while waited_time < max_wait_time:
@@ -381,7 +381,6 @@ class ProjectZomboidServerManager(GameServerManager):
                 # Check for new lines after the marker position
                 with self._log_lines_lock:
                     current_buffer = self._log_lines.copy()
-                    recent_lines = self._log_lines[-5:] if self._log_lines else []
 
                 # Find new lines that appeared after our marker
                 new_lines_found = []
@@ -431,7 +430,6 @@ class ProjectZomboidServerManager(GameServerManager):
             # Capture any new log output since the command was sent
             with self._log_lines_lock:
                 final_buffer = self._log_lines.copy()
-                all_recent_lines = self._log_lines[-10:] if self._log_lines else []
 
             # If we didn't find new lines in the loop, do a final check
             if not new_lines_found:
@@ -474,7 +472,10 @@ class ProjectZomboidServerManager(GameServerManager):
                 else:
                     return f"Command '{command}' sent successfully (no formatted output captured)"
             else:
-                return f"Command '{command}' sent successfully (no output captured after {max_wait_time}s)"
+                return (
+                    f"Command '{command}' sent successfully "
+                    f"(no output captured after {max_wait_time}s)"
+                )
 
         except Exception as e:
             raise ServerControlError(f"Failed to send command '{command}': {e}")

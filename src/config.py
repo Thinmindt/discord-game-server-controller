@@ -1,5 +1,7 @@
 import os
 import pathlib
+from typing import Optional
+
 from dotenv import load_dotenv
 import requests
 
@@ -32,7 +34,7 @@ class Config:
         assert PALWORLD_API_PASSWORD
 
     @staticmethod
-    def get_public_ip():
+    def get_public_ip() -> Optional[str]:
         try:
             response = requests.get("https://api.ipify.org")
             response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)

@@ -35,7 +35,7 @@ class PalworldServerManager(GameServerManager):
         }
         self.auth = requests.auth.HTTPBasicAuth(username, password)
         self.base_url = f"http://{host}:{port}/v1/api/"
-        self.server_process: Optional[subprocess.Popen] = None
+        self.server_process: Optional[subprocess.Popen[str]] = None
 
     def is_on(self) -> bool:
         """Return True if the server is running and responding via API."""

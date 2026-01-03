@@ -1,9 +1,6 @@
 """Test the new cmd functionality for sending ad-hoc commands to game servers."""
 
-import tempfile
-import pathlib
 from unittest.mock import MagicMock, patch
-import pytest
 
 from src.game_commands import GameServerCommands
 from src.game_server_interface import ServerControlError

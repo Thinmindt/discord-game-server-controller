@@ -2,7 +2,7 @@
 
 import tempfile
 import pathlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from src.project_zomboid_manager import ProjectZomboidServerManager
 
@@ -45,7 +45,10 @@ def test_project_zomboid_manager_startup_detection():
         # Simulate log lines including startup message
         manager._log_lines = [
             "LOG  : Network     , 1751825451443> 313,088,958> *** SERVER STARTED ****",
-            "LOG  : Network     , 1751825451444> Server is listening on port 16261 (for Steam connection) and port 16262 (for UDPRakNet connection)",
+            (
+                "LOG  : Network     , 1751825451444> Server is listening on port 16261 "
+                "(for Steam connection) and port 16262 (for UDPRakNet connection)"
+            ),
         ]
 
         # Test log parsing for server info
@@ -142,14 +145,19 @@ def test_project_zomboid_send_server_command():
         mock_stdin.reset_mock()
 
         # Simulate server logs being added during command execution
-        initial_log_count = len(manager._log_lines)
-
         def simulate_log_output(*args, **kwargs):
             # Simulate logs appearing after command is sent
             manager._log_lines.extend(
                 [
-                    'LOG  : General     , 1754248298938> 2,194,760,255> command entered via server console (System.in): "setaccesslevel grug none"',
-                    "LOG  : General     , 1754248298970> 2,194,760,287> User grug no longer has access level",
+                    (
+                        "LOG  : General     , 1754248298938> 2,194,760,255> "
+                        "command entered via server console (System.in): "
+                        '"setaccesslevel grug none"'
+                    ),
+                    (
+                        "LOG  : General     , 1754248298970> 2,194,760,287> "
+                        "User grug no longer has access level"
+                    ),
                 ]
             )
 

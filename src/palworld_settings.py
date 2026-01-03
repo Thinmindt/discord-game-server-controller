@@ -13,7 +13,7 @@ class PalWorldSettings:
         self.settings: Dict[str, Any] = {}
         self.load()
 
-    def load(self):
+    def load(self) -> None:
         """Load and parse the settings file"""
         if not os.path.exists(self.file_path):
             raise FileNotFoundError(f"Settings file not found: {self.file_path}")

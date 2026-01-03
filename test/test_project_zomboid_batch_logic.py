@@ -98,7 +98,8 @@ PAUSE
         custom_content = """@echo off
 cd /d "%~dp0"
 SET PZ_CLASSPATH=java/all.jar
-".\\jre64\\bin\\java.exe" -Xms4g -Xmx4g -cp %PZ_CLASSPATH% zombie.network.GameServer -servername MyServer
+".\\jre64\\bin\\java.exe" -Xms4g -Xmx4g -cp %PZ_CLASSPATH% \\
+  zombie.network.GameServer -servername MyServer
 PAUSE
 """
         custom_batch.write_text(custom_content)

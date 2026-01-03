@@ -8,7 +8,7 @@ the Discord bot (main.py) and CLI tester (cli_test.py).
 import asyncio
 import queue
 import threading
-from typing import Any, List, Optional, Protocol, Dict, Union
+from typing import List, Optional, Protocol, Dict, Union
 
 from src.backup_manager import BackupResult, BackupUtility
 from src.config import Config
@@ -466,7 +466,9 @@ class GameServerCommands:
                 else:
                     await ctx.send(f"✅ {display_name} backup completed successfully!")
             else:
-                await ctx.send(f"⚠️ {display_name} backup completed with warnings: {result.message}")
+                await ctx.send(
+                    f"⚠️ {display_name} backup completed with warnings: " f"{result.message}"
+                )
 
         except ServerControlError as e:
             await ctx.send(f"❌ Backup failed: {e}")
