@@ -36,7 +36,7 @@ A Discord bot for managing game servers remotely. Control your Palworld and Proj
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.14+
 - [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) (for server updates)
 - Discord Bot Token ([create one here](https://discord.com/developers/applications))
 
@@ -127,10 +127,10 @@ See [docs/CLI_TESTING.md](docs/CLI_TESTING.md) for more details.
 
 ```bash
 # Format code
-black .
+ruff format .
 
-# Lint
-flake8 .
+# Lint (with auto-fix)
+ruff check . --fix
 
 # Type check
 mypy .
