@@ -115,16 +115,19 @@ OptionSettings=(Difficulty=None,DayTimeSpeedRate=1.000000,ExpRate=1.000000,Serve
 
     def test_parsing_with_quotes_and_commas(self):
         """Test parsing values with quotes and commas inside strings"""
-        with patch(
-            "builtins.open",
-            mock_open(
-                read_data=(
-                    "[/Script/Pal.PalGameWorldSettings]\n"
-                    'OptionSettings=(ServerName="Test, with comma",'
-                    'Description="Test ""with"" quotes")\n'
-                )
+        with (
+            patch(
+                "builtins.open",
+                mock_open(
+                    read_data=(
+                        "[/Script/Pal.PalGameWorldSettings]\n"
+                        'OptionSettings=(ServerName="Test, with comma",'
+                        'Description="Test ""with"" quotes")\n'
+                    )
+                ),
             ),
-        ), patch.object(os.path, "exists", return_value=True):
+            patch.object(os.path, "exists", return_value=True),
+        ):
             settings = PalWorldSettings("fake_path.ini")
             # With the current implementation, these might not parse perfectly,
             # but we can assert current behavior

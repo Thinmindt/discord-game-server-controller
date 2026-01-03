@@ -104,7 +104,9 @@ class GameServerCommands:
             if manager.is_on():
                 await ctx.send(f"🎉 {display_name} server started!")
             else:
-                await ctx.send("⏰ Timeout occurred while starting up. Contact support.")
+                await ctx.send(
+                    "⏰ Timeout occurred while starting up. Contact support."
+                )
         else:
             await ctx.send(f"✅ {display_name} server is already running.")
 
@@ -162,7 +164,9 @@ class GameServerCommands:
         if manager.is_on():
             wait_time = 30
             try:
-                await ctx.send(f"🔄 {display_name} server restarting. Players should log out now!")
+                await ctx.send(
+                    f"🔄 {display_name} server restarting. Players should log out now!"
+                )
 
                 # Stop the server
                 manager.shutdown_server(wait_time=wait_time)
@@ -186,7 +190,9 @@ class GameServerCommands:
             except ServerControlError as e:
                 await ctx.send(f"❌ Error during restart: {e}")
         else:
-            await ctx.send(f"⚠️ {display_name} server is not running. Use `start` instead.")
+            await ctx.send(
+                f"⚠️ {display_name} server is not running. Use `start` instead."
+            )
 
     async def cmd_update(self, ctx: MessageContext, args: list[str]) -> None:
         """Update the server."""
@@ -209,8 +215,66 @@ class GameServerCommands:
             return
 
         if manager.is_on():
-            await ctx.send(f"⚠️ The {display_name} server is running. Shut it down before updating.")
+            await ctx.send(
+                f"⚠️ The {display_name} server is running. Shut it down before updating."
+            )
             return
+
+        # Auto-backup before updating (if supported)
+        try:
+            await ctx.send("💾 Creating backup before update...")
+
+            message_queue: queue.Queue[str | None] = queue.Queue()
+
+            def progress_callback(message: str) -> None:
+                message_queue.put(message)
+
+            backup_result_holder: list[BackupResult | Exception] = []
+            backup_complete = threading.Event()
+
+            def run_backup() -> None:
+                try:
+                    result = manager.backup_server(progress_callback)
+                    backup_result_holder.append(result)
+                except Exception as e:
+                    backup_result_holder.append(e)
+                finally:
+                    backup_complete.set()
+                    message_queue.put(None)
+
+            backup_thread = threading.Thread(target=run_backup)
+            backup_thread.start()
+
+            while not backup_complete.is_set() or not message_queue.empty():
+                try:
+                    message = message_queue.get(timeout=0.5)
+                    if message is None:
+                        break
+                    await ctx.send(message)
+                except queue.Empty:
+                    await asyncio.sleep(0.1)
+
+            backup_thread.join()
+
+            if backup_result_holder and isinstance(backup_result_holder[0], Exception):
+                error = backup_result_holder[0]
+                if "No files found to backup" in str(error):
+                    await ctx.send(
+                        "⚠️ No existing save data to backup. Proceeding with update..."
+                    )
+                else:
+                    await ctx.send(
+                        f"⚠️ Backup failed: {error}. Proceeding with update anyway..."
+                    )
+            elif backup_result_holder and isinstance(
+                backup_result_holder[0], BackupResult
+            ):
+                if backup_result_holder[0].success:
+                    await ctx.send("✅ Backup completed!")
+
+        except ServerControlError:
+            # This game doesn't support backups, skip silently
+            pass
 
         await ctx.send(f"⬇️ Starting {display_name} server update. Please wait...")
 
@@ -269,7 +333,9 @@ class GameServerCommands:
             except ServerControlError as e:
                 await ctx.send(f"❌ Could not retrieve server info: {e}")
         else:
-            await ctx.send(f"⚠️ The {display_name} server is off. We cannot retrieve information.")
+            await ctx.send(
+                f"⚠️ The {display_name} server is off. We cannot retrieve information."
+            )
 
     async def cmd_ip(self, ctx: MessageContext, args: list[str]) -> None:
         """Display the public IP address of the host."""
@@ -293,7 +359,9 @@ class GameServerCommands:
             return
 
         ip = Config.get_public_ip()
-        await ctx.send(f"🌐 The {display_name} server host IP address is: `{ip}:{port}`")
+        await ctx.send(
+            f"🌐 The {display_name} server host IP address is: `{ip}:{port}`"
+        )
 
     async def cmd_games(self, ctx: MessageContext, args: list[str]) -> None:
         """List all supported game types and their aliases."""
@@ -345,7 +413,9 @@ class GameServerCommands:
             return
 
         if not manager.is_on():
-            await ctx.send(f"⚠️ The {display_name} server is not running. Start it first.")
+            await ctx.send(
+                f"⚠️ The {display_name} server is not running. Start it first."
+            )
             return
 
         try:
@@ -458,14 +528,211 @@ class GameServerCommands:
                             f"**Recent backups:**\n{backup_list}"
                         )
                     else:
-                        await ctx.send(f"✅ {display_name} backup completed successfully!")
+                        await ctx.send(
+                            f"✅ {display_name} backup completed successfully!"
+                        )
                 else:
                     await ctx.send(f"✅ {display_name} backup completed successfully!")
             else:
-                await ctx.send(f"⚠️ {display_name} backup completed with warnings: {result.message}")
+                await ctx.send(
+                    f"⚠️ {display_name} backup completed with warnings: {result.message}"
+                )
 
         except ServerControlError as e:
             await ctx.send(f"❌ Backup failed: {e}")
+
+    async def cmd_version(self, ctx: MessageContext, args: list[str]) -> None:
+        """Display the current server version/branch."""
+        game_type = args[0] if args else Config.DEFAULT_GAME
+
+        found_game = self._find_supported_game(game_type)
+
+        if not found_game:
+            supported = self._get_all_supported_aliases()
+            await ctx.send(
+                f"Unsupported game type '{game_type}'. Supported games: {', '.join(supported)}"
+            )
+            return
+
+        try:
+            manager = self.get_server_manager(game_type)
+            display_name = self._format_game_name(found_game)
+        except ValueError as e:
+            await ctx.send(f"Error: {str(e)}")
+            return
+
+        # Check if this game supports version detection
+        try:
+            version_info = manager.get_version()
+        except ServerControlError:
+            await ctx.send(f"⚠️ {display_name} does not support version detection.")
+            return
+
+        branch_display = version_info.get(
+            "branch_display", version_info.get("branch", "Unknown")
+        )
+        server_name = version_info.get("server_name", "Unknown")
+
+        status = "🟢 Running" if manager.is_on() else "🔴 Stopped"
+
+        await ctx.send(
+            f"📦 **{display_name} Version Info**\n"
+            f"Version: {branch_display}\n"
+            f"Server Name: `{server_name}`\n"
+            f"Status: {status}"
+        )
+
+    async def cmd_setversion(self, ctx: MessageContext, args: list[str]) -> None:
+        """Switch the server to a different version/branch."""
+        if len(args) < 2:
+            await ctx.send(
+                "❌ Usage: `setversion <game_type> <version>`\n"
+                "Examples:\n"
+                "  `setversion pz stable` - Switch to Build 41 (stable)\n"
+                "  `setversion pz beta` - Switch to Build 42 (beta)\n"
+                "  `setversion pz b41` - Switch to Build 41\n"
+                "  `setversion pz b42` - Switch to Build 42"
+            )
+            return
+
+        game_type = args[0]
+        target_branch = args[1]
+
+        found_game = self._find_supported_game(game_type)
+
+        if not found_game:
+            supported = self._get_all_supported_aliases()
+            await ctx.send(
+                f"Unsupported game type '{game_type}'. Supported games: {', '.join(supported)}"
+            )
+            return
+
+        try:
+            manager = self.get_server_manager(game_type)
+            display_name = self._format_game_name(found_game)
+        except ValueError as e:
+            await ctx.send(f"Error: {str(e)}")
+            return
+
+        # Check if server is running
+        if manager.is_on():
+            await ctx.send(
+                f"⚠️ The {display_name} server is running. "
+                "Please stop it first with `stop` before switching versions."
+            )
+            return
+
+        # Check if this game supports version switching
+        try:
+            # First, create a backup before switching
+            await ctx.send("💾 Creating backup before version switch...")
+
+            # Use the backup method with progress callback
+            message_queue: queue.Queue[str | None] = queue.Queue()
+
+            def progress_callback(message: str) -> None:
+                message_queue.put(message)
+
+            # Run backup in thread
+            backup_result_holder: list[BackupResult | Exception] = []
+            backup_complete = threading.Event()
+
+            def run_backup() -> None:
+                try:
+                    result = manager.backup_server(progress_callback)
+                    backup_result_holder.append(result)
+                except Exception as e:
+                    backup_result_holder.append(e)
+                finally:
+                    backup_complete.set()
+                    message_queue.put(None)
+
+            backup_thread = threading.Thread(target=run_backup)
+            backup_thread.start()
+
+            # Process backup messages
+            while not backup_complete.is_set() or not message_queue.empty():
+                try:
+                    message = message_queue.get(timeout=0.5)
+                    if message is None:
+                        break
+                    await ctx.send(message)
+                except queue.Empty:
+                    await asyncio.sleep(0.1)
+
+            backup_thread.join()
+
+            if backup_result_holder and isinstance(backup_result_holder[0], Exception):
+                # Backup failed, but we might continue if there's nothing to back up
+                error = backup_result_holder[0]
+                if "No files found to backup" in str(error):
+                    await ctx.send(
+                        "⚠️ No existing save data found for current version. "
+                        "Proceeding with version switch..."
+                    )
+                else:
+                    await ctx.send(f"❌ Backup failed: {error}")
+                    return
+            elif backup_result_holder and isinstance(
+                backup_result_holder[0], BackupResult
+            ):
+                backup_result = backup_result_holder[0]
+                if backup_result.success:
+                    await ctx.send("✅ Backup completed successfully!")
+
+            # Now switch versions
+            await ctx.send(
+                f"🔄 Switching {display_name} to version `{target_branch}`..."
+            )
+            await ctx.send("⏳ Running SteamCMD update. This may take a few minutes...")
+
+            result = manager.set_version(target_branch)
+            await ctx.send(result)
+
+        except ServerControlError as e:
+            await ctx.send(f"❌ Version switch failed: {e}")
+
+    async def cmd_available_versions(
+        self, ctx: MessageContext, args: list[str]
+    ) -> None:
+        """Display the available versions/branches for a game server."""
+        game_type = args[0] if args else Config.DEFAULT_GAME
+
+        found_game = self._find_supported_game(game_type)
+
+        if not found_game:
+            supported = self._get_all_supported_aliases()
+            await ctx.send(
+                f"Unsupported game type '{game_type}'. Supported games: {', '.join(supported)}"
+            )
+            return
+
+        try:
+            manager = self.get_server_manager(game_type)
+            display_name = self._format_game_name(found_game)
+        except ValueError as e:
+            await ctx.send(f"Error: {str(e)}")
+            return
+
+        # Check if this game supports version listing
+        try:
+            versions = manager.get_available_versions()
+        except ServerControlError:
+            await ctx.send(f"⚠️ {display_name} does not support version selection.")
+            return
+
+        version_lines = []
+        for v in versions:
+            selected_marker = " ✅ (current)" if v.get("selected") else ""
+            version_lines.append(
+                f"• **{v['name']}**{selected_marker}\n  {v['description']}"
+            )
+
+        await ctx.send(
+            f"📋 **Available {display_name} Versions**\n\n"
+            + "\n".join(version_lines)
+            + "\n\nUse `setversion <game> <version>` to switch."
+        )
 
 
 # Global instance that can be shared
