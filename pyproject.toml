@@ -1,0 +1,37 @@
+[tool.black]
+line-length = 100
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+exclude = [".git", "__pycache__", ".venv", "build", "dist"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+ignore_missing_imports = true
+exclude = ["test/", "tests/", "cli_test.py", "test_buffer_fix.py", "debug_command_test.py"]
+
+[[tool.mypy.overrides]]
+module = ["discord.*", "psutil.*"]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["test", "."]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+pythonpath = ["."]

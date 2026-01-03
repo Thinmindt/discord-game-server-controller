@@ -1,5 +1,7 @@
 import os
 import pathlib
+from typing import Optional
+
 from dotenv import load_dotenv
 import requests
 
@@ -7,18 +9,32 @@ import requests
 class Config:
     load_dotenv()
     TOKEN = os.getenv("DISCORD_TOKEN")
-    SERVER_PATH = pathlib.Path(os.getenv("SERVER_PATH") or "")
+
+    # Palworld specific configs
+    PALWORLD_SERVER_PATH = pathlib.Path(os.getenv("PALWORLD_SERVER_PATH") or "")
+    PALWORLD_API_USERNAME = os.getenv("PALWORLD_SERVER_REST_API_USERNAME")
+    PALWORLD_API_PASSWORD = os.getenv("PALWORLD_SERVER_REST_API_PASSWORD")
+
+    # Project Zomboid specific configs
+    PZ_SERVER_PATH = pathlib.Path(os.getenv("PZ_SERVER_PATH") or os.getenv("SERVER_PATH") or "")
+    PZ_SERVER_NAME = os.getenv("PZ_SERVER_NAME", "servertest")
+    PZ_MEMORY_GB = int(os.getenv("PZ_MEMORY_GB", "4"))
+    PZ_BACKUP_PATH = pathlib.Path(os.getenv("PZ_BACKUP_PATH") or "D:\\ZomboidServerBackup")
+
+    # Common configs
     STEAM_CMD_PATH = pathlib.Path(os.getenv("STEAM_CMD_PATH") or "")
     DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
-    API_USERNAME = os.getenv("SERVER_REST_API_USERNAME")
-    API_PASSWORD = os.getenv("SERVER_REST_API_PASSWORD")
+    DEFAULT_GAME = os.getenv("DEFAULT_GAME", "palworld")
 
-    assert SERVER_PATH
     assert TOKEN
-    assert API_USERNAME
-    assert API_PASSWORD
+    # Only assert Palworld configs if we're using Palworld
+    if DEFAULT_GAME.lower() in ["palworld", "pal"]:
+        assert PALWORLD_SERVER_PATH
+        assert PALWORLD_API_USERNAME
+        assert PALWORLD_API_PASSWORD
 
-    def get_public_ip():
+    @staticmethod
+    def get_public_ip() -> Optional[str]:
         try:
             response = requests.get("https://api.ipify.org")
             response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)

@@ -31,7 +31,11 @@ RUN apt-get update \
     # Clean up
     && apt-get autoremove -y \
     && apt-get clean -y \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    #
+    # Install pip tools and python dependencies
+    && pip install -r dependencies/requirements.txt \
+    && pip install -r dependencies/dev-requirements.txt
 
 # Install node
 USER ${USERNAME}

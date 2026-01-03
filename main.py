@@ -1,136 +1,146 @@
-import asyncio
 import discord
 from discord.ext import commands
-
-
-import discord
+from typing import Any, Optional
 
 from src.config import Config
-from src.palworld_api import PalworldAPI
-from src.server_conductor import ServerConductor, ServerControlError
+from src.game_commands import game_commands
 
 COMMAND_PREFIX = "!"
 
-# These interact with the game server
-palworld_api = PalworldAPI(Config.API_USERNAME, Config.API_PASSWORD)
-server_conductor: ServerConductor = ServerConductor(
-    Config.SERVER_PATH, palworld_api, Config.STEAM_CMD_PATH
-)
+
+class DiscordContext:
+    """Adapter to make Discord context compatible with MessageContext protocol."""
+
+    def __init__(self, ctx: commands.Context[Any]) -> None:
+        self.ctx = ctx
+
+    async def send(self, message: str) -> None:
+        """Send a message to Discord."""
+        await self.ctx.send(message)
+
 
 # These interact with Discord
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
-list_of_commands = ["help", "start", "restart", "stop", "update"]
-
 
 @bot.command(name="start")
-async def start_server(ctx):
-    """Start the game server."""
+async def start_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+    """Start the game server.
 
-    if not server_conductor.is_on:
-        await ctx.send("Checking for updates before starting...")
-        server_conductor.update_server()
-
-        await ctx.send("Starting server...")
-        server_conductor.start_server()
-
-        max_tries = 20
-        tries = 0
-        while not server_conductor.is_on:
-            asyncio.sleep(1)
-            tries += 1
-            if tries > max_tries:
-                await ctx.send("Timeout occurred while starting up. Contact support.")
-                return
-
-        await ctx.send("Server started!")
-    else:
-        await ctx.send("Server is already running.")
+    Usage: !start [game_type]
+    Examples: !start pz, !start palworld, !start
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_start(discord_ctx, args)
 
 
 @bot.command(name="restart")
-async def restart_server(ctx):
-    """Restart the game server."""
+async def restart_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+    """Restart the game server.
 
-    wait_time = 10  # seconds from shutdown command issued until the server stops.
-    if server_conductor.is_on:
-        try:
-            palworld_api.shutdown_server(wait_time=10)
-            await ctx.send(
-                f"Server shutting down in {wait_time} seconds to prepare for a reset. Log out now!"
-            )
-        except Exception as error:
-            await ctx.send(error)
-            return
-        await asyncio.sleep(wait_time + 5)
-        server_conductor.start_server()
-        await ctx.send("Server restarted!")
-    else:
-        await ctx.send("Server is not running.")
+    Usage: !restart [game_type]
+    Examples: !restart pz, !restart palworld, !restart
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_restart(discord_ctx, args)
 
 
 @bot.command(name="stop")
-async def stop_server(ctx):
-    """Stop and close the game server."""
+async def stop_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+    """Stop and close the game server.
 
-    wait_time = 10  # seconds
-    extra_wait_allowance = 10  # give it an extra 10 seconds.
-    if server_conductor.is_on:
-        try:
-            palworld_api.shutdown_server(wait_time=wait_time)
-            await ctx.send(f"Server will shut down in {wait_time} seconds.")
-
-            await asyncio.sleep(10)
-
-            while server_conductor.is_on and extra_wait_allowance > 0:
-                wait_interval = 2
-                await asyncio.sleep(wait_interval)
-                extra_wait_allowance -= wait_interval
-
-            await ctx.send("The server is now off.")
-        except Exception as error:
-            await ctx.send(error)
-    else:
-        await ctx.send("Server is not running.")
+    Usage: !stop [game_type]
+    Examples: !stop pz, !stop palworld, !stop
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_stop(discord_ctx, args)
 
 
 @bot.command(name="update")
-async def update_server(ctx):
-    """Update the server. You must stop the server before updating."""
+async def update_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+    """Update the server. You must stop the server before updating.
 
-    if server_conductor.is_on:
-        await ctx.send("The server is running. Shut it down before updating.")
-        return
-
-    await ctx.send("Starting update. Please wait...")
-
-    try:
-        server_conductor.update_server()
-
-        await ctx.send("Server update executed successfully.")
-    except ServerControlError as error:
-        await ctx.send(f"Server update failed: {error}")
+    Usage: !update [game_type]
+    Examples: !update pz, !update palworld, !update
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_update(discord_ctx, args)
 
 
 @bot.command(name="info")
-async def get_info(ctx):
-    """Display information about the running server."""
+async def get_info(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+    """Display information about the running server.
 
-    if server_conductor.is_on:
-        info = palworld_api.get_server_info()
-
-        server_info = (
-            "Server Info:",
-            f"version: {info.version}",
-            f"servername: {info.servername}",
-            f"description: {info.description}",
-            f"worldguid: {info.worldguid}",
-        )
-        await ctx.send("\n".join(server_info))
-    else:
-        await ctx.send("The server is off. We cannot retrieve information.")
+    Usage: !info [game_type]
+    Examples: !info pz, !info palworld, !info
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_info(discord_ctx, args)
 
 
-bot.run(Config.TOKEN)
+@bot.command(name="ip")
+async def get_ip(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+    """Display the public IP address of the host.
+
+    Usage: !ip [game_type]
+    Examples: !ip pz, !ip palworld, !ip
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_ip(discord_ctx, args)
+
+
+@bot.command(name="games")
+async def list_games(ctx: commands.Context[Any]) -> None:
+    """List all supported game types and their aliases."""
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_games(discord_ctx, [])
+
+
+@bot.command(name="cmd")
+async def send_server_command(ctx: commands.Context[Any], *args: str) -> None:
+    """Send an ad-hoc admin command to the running game server.
+
+    Usage: !cmd <game_type> <command> [args...]
+    Examples:
+      !cmd pz teleport player1 player2
+      !cmd pz servermsg "Server maintenance in 5 minutes"
+      !cmd pz additem "player1" "Base.Axe" 5
+
+    See https://pzwiki.net/wiki/Admin_commands for Project Zomboid commands.
+    """
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_cmd(discord_ctx, list(args))
+
+
+@bot.command(name="backup")
+async def backup_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+    """Create a backup of the game server data.
+
+    Usage: !backup [game_type]
+    Examples: !backup pz, !backup, !backup project_zomboid
+
+    The server must be stopped before creating a backup.
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_backup(discord_ctx, args)
+
+
+def main() -> None:
+    """Main entry point for the Discord bot."""
+    if Config.TOKEN is None:
+        raise ValueError("DISCORD_TOKEN environment variable not set")
+
+    bot.run(Config.TOKEN)
+
+
+if __name__ == "__main__":
+    main()
