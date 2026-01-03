@@ -1,7 +1,8 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
 import pathlib
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 from src.backup_manager import BackupResult
 
@@ -13,10 +14,10 @@ class ServerInfo:
     server_name: str
     version: str
     description: str
-    max_players: Optional[int] = None
-    current_players: Optional[int] = None
-    uptime: Optional[str] = None
-    additional_info: Optional[Dict[str, Any]] = None
+    max_players: int | None = None
+    current_players: int | None = None
+    uptime: str | None = None
+    additional_info: dict[str, Any] | None = None
 
 
 class GameServerManager(ABC):
@@ -86,7 +87,7 @@ class GameServerManager(ABC):
         raise ServerControlError("This game server does not support ad-hoc commands")
 
     def backup_server(
-        self, progress_callback: Optional[Callable[[str], None]] = None
+        self, progress_callback: Callable[[str], None] | None = None
     ) -> BackupResult:
         """
         Create a backup of the server data.
@@ -102,7 +103,7 @@ class GameServerManager(ABC):
         """
         raise ServerControlError("This game server does not support backups")
 
-    def get_backup_paths(self) -> Dict[str, pathlib.Path]:
+    def get_backup_paths(self) -> dict[str, pathlib.Path]:
         """
         Get the paths that would be backed up.
 

@@ -3,15 +3,15 @@ import pathlib
 import subprocess
 import threading
 import time
-from typing import Callable, Dict, Optional, List
+from collections.abc import Callable
 
 from src.backup_manager import BackupResult, BackupUtility
+from src.config import Config
 from src.game_server_interface import (
     GameServerManager,
-    ServerInfo,
     ServerControlError,
+    ServerInfo,
 )
-from src.config import Config
 
 
 class ProjectZomboidServerManager(GameServerManager):
@@ -27,12 +27,12 @@ class ProjectZomboidServerManager(GameServerManager):
         super().__init__(server_path, steam_cmd_path)
         self.server_name = server_name
         self.memory_gb = memory_gb
-        self.server_process: Optional[subprocess.Popen[str]] = None
+        self.server_process: subprocess.Popen[str] | None = None
         self._server_started = False
-        self._server_info: Optional[ServerInfo] = None
-        self._log_lines: List[str] = []
+        self._server_info: ServerInfo | None = None
+        self._log_lines: list[str] = []
         self._log_lines_lock = threading.Lock()  # Add thread safety for log lines
-        self._monitor_thread: Optional[threading.Thread] = None
+        self._monitor_thread: threading.Thread | None = None
         self._stop_monitoring = False
 
     def is_on(self) -> bool:
@@ -268,7 +268,7 @@ class ProjectZomboidServerManager(GameServerManager):
         if not batch_file.exists():
             raise ServerControlError(f"Original batch file not found: {batch_file}")
 
-        with open(batch_file, "r") as f:
+        with open(batch_file) as f:
             content = f.read()
 
         # Only modify the server name parameter in the GameServer command line
@@ -371,7 +371,7 @@ class ProjectZomboidServerManager(GameServerManager):
             max_wait_time = 5.0  # Maximum time to wait for output
             check_interval = 0.1  # Check every 100ms
             waited_time = 0.0
-            new_lines_found: List[str] = []
+            new_lines_found: list[str] = []
 
             # Keep checking for new output until we get some or timeout
             while waited_time < max_wait_time:
@@ -480,7 +480,7 @@ class ProjectZomboidServerManager(GameServerManager):
         except Exception as e:
             raise ServerControlError(f"Failed to send command '{command}': {e}")
 
-    def get_backup_paths(self) -> Dict[str, pathlib.Path]:
+    def get_backup_paths(self) -> dict[str, pathlib.Path]:
         """
         Get the paths that would be backed up for Project Zomboid.
 
@@ -500,7 +500,7 @@ class ProjectZomboidServerManager(GameServerManager):
         }
 
     def backup_server(
-        self, progress_callback: Optional[Callable[[str], None]] = None
+        self, progress_callback: Callable[[str], None] | None = None
     ) -> BackupResult:
         """
         Create a backup of the Project Zomboid server data.

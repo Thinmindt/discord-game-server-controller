@@ -1,10 +1,11 @@
+import json
 import pathlib
 import subprocess
-import requests
-import json
-from typing import Any, Dict, Optional
+from typing import Any
 
-from src.game_server_interface import GameServerManager, ServerInfo, ServerControlError
+import requests
+
+from src.game_server_interface import GameServerManager, ServerControlError, ServerInfo
 
 
 class PalworldAPIError(Exception):
@@ -35,7 +36,7 @@ class PalworldServerManager(GameServerManager):
         }
         self.auth = requests.auth.HTTPBasicAuth(username, password)
         self.base_url = f"http://{host}:{port}/v1/api/"
-        self.server_process: Optional[subprocess.Popen[str]] = None
+        self.server_process: subprocess.Popen[str] | None = None
 
     def is_on(self) -> bool:
         """Return True if the server is running and responding via API."""
@@ -161,7 +162,7 @@ class PalworldServerManager(GameServerManager):
         """Get the default port for Palworld server."""
         return 8211
 
-    def _send_get_request(self, url: str, payload: Dict[Any, Any] = {}) -> Dict[str, Any]:
+    def _send_get_request(self, url: str, payload: dict[Any, Any] = {}) -> dict[str, Any]:
         """Send a GET request to the server. Returns the response as a dict."""
         response = requests.request("GET", url, headers=self.headers, data=payload, auth=self.auth)
         response.raise_for_status()
@@ -171,13 +172,13 @@ class PalworldServerManager(GameServerManager):
             return {"status": "success", "message": "Request completed (empty response)"}
 
         try:
-            response_dict: Dict[str, Any] = json.loads(response.text)
+            response_dict: dict[str, Any] = json.loads(response.text)
             return response_dict
         except json.JSONDecodeError:
             # If it's not JSON, return the text as a message
             return {"status": "success", "message": response.text, "raw_response": True}
 
-    def _send_post_request(self, url: str, payload: Dict[Any, Any]) -> Dict[str, Any]:
+    def _send_post_request(self, url: str, payload: dict[Any, Any]) -> dict[str, Any]:
         """Send a POST request to the server. Returns the response as a dict."""
         response = requests.post(url, headers=self.headers, json=payload, auth=self.auth)
         response.raise_for_status()
@@ -187,31 +188,31 @@ class PalworldServerManager(GameServerManager):
             return {"status": "success", "message": "Request completed (empty response)"}
 
         try:
-            response_dict: Dict[str, Any] = json.loads(response.text)
+            response_dict: dict[str, Any] = json.loads(response.text)
             return response_dict
         except json.JSONDecodeError:
             # If it's not JSON, return the text as a message
             return {"status": "success", "message": response.text, "raw_response": True}
 
     # Additional Palworld-specific methods
-    def get_players(self) -> Dict[str, Any]:
+    def get_players(self) -> dict[str, Any]:
         """Get list of players currently on the server."""
         url = f"{self.base_url}players"
         return self._send_get_request(url)
 
-    def kick_player(self, steam_id: str, message: str = "You have been kicked") -> Dict[str, Any]:
+    def kick_player(self, steam_id: str, message: str = "You have been kicked") -> dict[str, Any]:
         """Kick a player from the server."""
         url = f"{self.base_url}kick"
         payload = {"userid": steam_id, "message": message}
         return self._send_post_request(url, payload)
 
-    def ban_player(self, steam_id: str, message: str = "You have been banned") -> Dict[str, Any]:
+    def ban_player(self, steam_id: str, message: str = "You have been banned") -> dict[str, Any]:
         """Ban a player from the server."""
         url = f"{self.base_url}ban"
         payload = {"userid": steam_id, "message": message}
         return self._send_post_request(url, payload)
 
-    def broadcast_message(self, message: str) -> Dict[str, Any]:
+    def broadcast_message(self, message: str) -> dict[str, Any]:
         """Broadcast a message to all players."""
         url = f"{self.base_url}announce"
         payload = {"message": message}

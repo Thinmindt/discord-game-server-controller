@@ -1,4 +1,4 @@
-from typing import Dict, List
+
 from src.config import Config
 from src.game_server_interface import GameServerManager
 from src.palworld_manager import PalworldServerManager
@@ -52,7 +52,7 @@ class ServerFactory:
             raise ValueError(f"Unsupported game type: {game_type}")
 
     @staticmethod
-    def get_supported_games() -> Dict[str, List[str]]:
+    def get_supported_games() -> dict[str, list[str]]:
         """Get a dictionary of supported games and their aliases."""
         return {
             "palworld": ["palworld", "pal"],

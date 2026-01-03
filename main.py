@@ -1,6 +1,7 @@
+from typing import Any
+
 import discord
 from discord.ext import commands
-from typing import Any, Optional
 
 from src.config import Config
 from src.game_commands import game_commands
@@ -26,7 +27,7 @@ bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
 
 @bot.command(name="start")
-async def start_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+async def start_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Start the game server.
 
     Usage: !start [game_type]
@@ -38,7 +39,7 @@ async def start_server(ctx: commands.Context[Any], game_type: Optional[str] = No
 
 
 @bot.command(name="restart")
-async def restart_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+async def restart_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Restart the game server.
 
     Usage: !restart [game_type]
@@ -50,7 +51,7 @@ async def restart_server(ctx: commands.Context[Any], game_type: Optional[str] = 
 
 
 @bot.command(name="stop")
-async def stop_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+async def stop_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Stop and close the game server.
 
     Usage: !stop [game_type]
@@ -62,7 +63,7 @@ async def stop_server(ctx: commands.Context[Any], game_type: Optional[str] = Non
 
 
 @bot.command(name="update")
-async def update_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+async def update_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Update the server. You must stop the server before updating.
 
     Usage: !update [game_type]
@@ -74,7 +75,7 @@ async def update_server(ctx: commands.Context[Any], game_type: Optional[str] = N
 
 
 @bot.command(name="info")
-async def get_info(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+async def get_info(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Display information about the running server.
 
     Usage: !info [game_type]
@@ -86,7 +87,7 @@ async def get_info(ctx: commands.Context[Any], game_type: Optional[str] = None) 
 
 
 @bot.command(name="ip")
-async def get_ip(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+async def get_ip(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Display the public IP address of the host.
 
     Usage: !ip [game_type]
@@ -121,7 +122,7 @@ async def send_server_command(ctx: commands.Context[Any], *args: str) -> None:
 
 
 @bot.command(name="backup")
-async def backup_server(ctx: commands.Context[Any], game_type: Optional[str] = None) -> None:
+async def backup_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Create a backup of the game server data.
 
     Usage: !backup [game_type]

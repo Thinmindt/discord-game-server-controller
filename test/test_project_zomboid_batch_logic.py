@@ -1,7 +1,8 @@
 """Test Project Zomboid batch file modification logic."""
 
-import tempfile
 import pathlib
+import tempfile
+
 import pytest
 
 from src.project_zomboid_manager import ProjectZomboidServerManager

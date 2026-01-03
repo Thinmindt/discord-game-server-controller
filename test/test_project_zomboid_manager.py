@@ -1,7 +1,7 @@
 """Test the new unified Project Zomboid server manager."""
 
-import tempfile
 import pathlib
+import tempfile
 from unittest.mock import MagicMock
 
 from src.project_zomboid_manager import ProjectZomboidServerManager
