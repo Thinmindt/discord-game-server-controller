@@ -10,7 +10,7 @@ import pathlib
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -175,7 +175,7 @@ class BackupUtility:
 
         return formatted
 
-    def _get_backup_folders(self) -> List[tuple]:
+    def _get_backup_folders(self) -> List[Tuple[datetime, pathlib.Path]]:
         """
         Get all backup folders for this identifier, sorted by timestamp descending.
 

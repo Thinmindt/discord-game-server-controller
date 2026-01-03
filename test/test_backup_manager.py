@@ -3,9 +3,7 @@
 import pathlib
 import tempfile
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
 
-import pytest
 
 from src.backup_manager import BackupResult, BackupUtility
 

@@ -8,9 +8,9 @@ the Discord bot (main.py) and CLI tester (cli_test.py).
 import asyncio
 import queue
 import threading
-from typing import List, Optional, Protocol, Dict, cast
+from typing import Any, List, Optional, Protocol, Dict, Union
 
-from src.backup_manager import BackupUtility
+from src.backup_manager import BackupResult, BackupUtility
 from src.config import Config
 from src.game_server_interface import GameServerManager, ServerControlError
 from src.server_factory import ServerFactory
@@ -27,7 +27,7 @@ class MessageContext(Protocol):
 class GameServerCommands:
     """Unified command implementations for game server management."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.server_managers: Dict[str, GameServerManager] = {}
 
     def get_server_manager(self, game_type: str) -> GameServerManager:
@@ -39,7 +39,7 @@ class GameServerCommands:
 
         # Use the canonical name as the key to ensure aliases share the same manager
         if canonical_name not in self.server_managers:
-            manager = cast(GameServerManager, ServerFactory.create_server_manager(game_type))
+            manager = ServerFactory.create_server_manager(game_type)
             self.server_managers[canonical_name] = manager
 
         return self.server_managers[canonical_name]
@@ -51,7 +51,7 @@ class GameServerCommands:
 
         for game_name, aliases in supported_games.items():
             if game_type_lower in aliases:
-                return cast(str, game_name)
+                return game_name
         return None
 
     def _get_all_supported_aliases(self) -> List[str]:
@@ -390,7 +390,7 @@ class GameServerCommands:
         try:
             # Use a thread-safe queue to communicate between backup thread and async loop
             message_queue: queue.Queue[Optional[str]] = queue.Queue()
-            result_holder: List = []  # To store result or exception from backup thread
+            result_holder: List[Union[BackupResult, Exception]] = []
             backup_complete = threading.Event()
 
             def progress_callback(message: str) -> None:
@@ -401,9 +401,9 @@ class GameServerCommands:
                 """Run backup in a separate thread."""
                 try:
                     result = manager.backup_server(progress_callback)
-                    result_holder.append(("success", result))
+                    result_holder.append(result)
                 except Exception as e:
-                    result_holder.append(("error", e))
+                    result_holder.append(e)
                 finally:
                     backup_complete.set()
                     message_queue.put(None)  # Signal completion
@@ -441,11 +441,11 @@ class GameServerCommands:
             if not result_holder:
                 raise ServerControlError("Backup failed unexpectedly")
 
-            status, result_or_error = result_holder[0]
-            if status == "error":
-                raise result_or_error
+            result_or_error = result_holder[0]
+            if isinstance(result_or_error, Exception):
+                raise ServerControlError(str(result_or_error))
 
-            result = result_or_error
+            result: BackupResult = result_or_error
 
             if result.success:
                 # Get recent backups for display using BackupUtility
