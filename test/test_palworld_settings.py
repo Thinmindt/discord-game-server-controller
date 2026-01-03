@@ -1,7 +1,8 @@
 import os
-import unittest
 import tempfile
-from unittest.mock import patch, mock_open
+import unittest
+from unittest.mock import mock_open, patch
+
 from src.palworld_settings import PalWorldSettings
 
 
@@ -105,9 +106,7 @@ OptionSettings=(Difficulty=None,DayTimeSpeedRate=1.000000,ExpRate=1.000000,Serve
 
     def test_parse_complex_nested_structure(self):
         """Test parsing a complex nested structure"""
-        complex_value = (
-            '(NestedValue1=(SubKey1="Value1",SubKey2=123),' "NestedValue2=(SubKey3=True))"
-        )
+        complex_value = '(NestedValue1=(SubKey1="Value1",SubKey2=123),NestedValue2=(SubKey3=True))'
         # Since our parser doesn't fully support nested structures,
         # this will just test the current behavior
         parsed = self.settings._parse_value(complex_value)
@@ -125,10 +124,9 @@ OptionSettings=(Difficulty=None,DayTimeSpeedRate=1.000000,ExpRate=1.000000,Serve
                     'Description="Test ""with"" quotes")\n'
                 )
             ),
-        ):
-            with patch.object(os.path, "exists", return_value=True):
-                settings = PalWorldSettings("fake_path.ini")
-                # With the current implementation, these might not parse perfectly,
-                # but we can assert current behavior
-                self.assertIsNotNone(settings.get("ServerName"))
-                self.assertIsNotNone(settings.get("Description"))
+        ), patch.object(os.path, "exists", return_value=True):
+            settings = PalWorldSettings("fake_path.ini")
+            # With the current implementation, these might not parse perfectly,
+            # but we can assert current behavior
+            self.assertIsNotNone(settings.get("ServerName"))
+            self.assertIsNotNone(settings.get("Description"))

@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Any, Dict
+from typing import Any
 
 
 class PalWorldSettings:
@@ -10,7 +10,7 @@ class PalWorldSettings:
         """Initialize with the path to the settings file"""
         self.file_path = file_path
         self.section = "/Script/Pal.PalGameWorldSettings"
-        self.settings: Dict[str, Any] = {}
+        self.settings: dict[str, Any] = {}
         self.load()
 
     def load(self) -> None:
@@ -18,7 +18,7 @@ class PalWorldSettings:
         if not os.path.exists(self.file_path):
             raise FileNotFoundError(f"Settings file not found: {self.file_path}")
 
-        with open(self.file_path, "r", encoding="utf-8") as f:
+        with open(self.file_path, encoding="utf-8") as f:
             content = f.read()
 
         # Extract the OptionSettings value
@@ -32,7 +32,7 @@ class PalWorldSettings:
         # Parse key-value pairs
         self.settings = self._parse_options(options_str)
 
-    def _parse_options(self, options_str: str) -> Dict[str, Any]:
+    def _parse_options(self, options_str: str) -> dict[str, Any]:
         """Parse the options string into a dictionary"""
         settings = {}
 
@@ -140,7 +140,7 @@ class PalWorldSettings:
         options_str = ",".join(formatted_pairs)
 
         # Read the original file to preserve comments and structure
-        with open(self.file_path, "r", encoding="utf-8") as f:
+        with open(self.file_path, encoding="utf-8") as f:
             content = f.read()
 
         # Replace the OptionSettings value

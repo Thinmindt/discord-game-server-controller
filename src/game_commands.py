@@ -8,7 +8,7 @@ the Discord bot (main.py) and CLI tester (cli_test.py).
 import asyncio
 import queue
 import threading
-from typing import List, Optional, Protocol, Dict, Union
+from typing import Protocol
 
 from src.backup_manager import BackupResult, BackupUtility
 from src.config import Config
@@ -28,7 +28,7 @@ class GameServerCommands:
     """Unified command implementations for game server management."""
 
     def __init__(self) -> None:
-        self.server_managers: Dict[str, GameServerManager] = {}
+        self.server_managers: dict[str, GameServerManager] = {}
 
     def get_server_manager(self, game_type: str) -> GameServerManager:
         """Get or create server manager for the specified game type."""
@@ -44,7 +44,7 @@ class GameServerCommands:
 
         return self.server_managers[canonical_name]
 
-    def _find_supported_game(self, game_type: str) -> Optional[str]:
+    def _find_supported_game(self, game_type: str) -> str | None:
         """Find the game type in supported games, return the canonical name."""
         supported_games = ServerFactory.get_supported_games()
         game_type_lower = game_type.lower()
@@ -54,7 +54,7 @@ class GameServerCommands:
                 return game_name
         return None
 
-    def _get_all_supported_aliases(self) -> List[str]:
+    def _get_all_supported_aliases(self) -> list[str]:
         """Get all supported game aliases as a flat list."""
         supported = []
         for game_name, aliases in ServerFactory.get_supported_games().items():
@@ -65,7 +65,7 @@ class GameServerCommands:
         """Convert internal game name to display name."""
         return game_name.replace("_", " ").title()
 
-    async def cmd_start(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_start(self, ctx: MessageContext, args: list[str]) -> None:
         """Start the game server."""
         game_type = args[0] if args else Config.DEFAULT_GAME
 
@@ -108,7 +108,7 @@ class GameServerCommands:
         else:
             await ctx.send(f"✅ {display_name} server is already running.")
 
-    async def cmd_stop(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_stop(self, ctx: MessageContext, args: list[str]) -> None:
         """Stop the game server."""
         game_type = args[0] if args else Config.DEFAULT_GAME
 
@@ -139,7 +139,7 @@ class GameServerCommands:
         else:
             await ctx.send(f"⚠️ {display_name} server is not running.")
 
-    async def cmd_restart(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_restart(self, ctx: MessageContext, args: list[str]) -> None:
         """Restart the game server."""
         game_type = args[0] if args else Config.DEFAULT_GAME
 
@@ -162,9 +162,7 @@ class GameServerCommands:
         if manager.is_on():
             wait_time = 30
             try:
-                await ctx.send(
-                    f"🔄 {display_name} server restarting. " f"Players should log out now!"
-                )
+                await ctx.send(f"🔄 {display_name} server restarting. Players should log out now!")
 
                 # Stop the server
                 manager.shutdown_server(wait_time=wait_time)
@@ -190,7 +188,7 @@ class GameServerCommands:
         else:
             await ctx.send(f"⚠️ {display_name} server is not running. Use `start` instead.")
 
-    async def cmd_update(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_update(self, ctx: MessageContext, args: list[str]) -> None:
         """Update the server."""
         game_type = args[0] if args else Config.DEFAULT_GAME
 
@@ -211,9 +209,7 @@ class GameServerCommands:
             return
 
         if manager.is_on():
-            await ctx.send(
-                f"⚠️ The {display_name} server is running. " f"Shut it down before updating."
-            )
+            await ctx.send(f"⚠️ The {display_name} server is running. Shut it down before updating.")
             return
 
         await ctx.send(f"⬇️ Starting {display_name} server update. Please wait...")
@@ -224,7 +220,7 @@ class GameServerCommands:
         except ServerControlError as e:
             await ctx.send(f"❌ {display_name} server update failed: {e}")
 
-    async def cmd_info(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_info(self, ctx: MessageContext, args: list[str]) -> None:
         """Display information about the running server."""
         game_type = args[0] if args else Config.DEFAULT_GAME
 
@@ -275,7 +271,7 @@ class GameServerCommands:
         else:
             await ctx.send(f"⚠️ The {display_name} server is off. We cannot retrieve information.")
 
-    async def cmd_ip(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_ip(self, ctx: MessageContext, args: list[str]) -> None:
         """Display the public IP address of the host."""
         game_type = args[0] if args else Config.DEFAULT_GAME
 
@@ -299,7 +295,7 @@ class GameServerCommands:
         ip = Config.get_public_ip()
         await ctx.send(f"🌐 The {display_name} server host IP address is: `{ip}:{port}`")
 
-    async def cmd_games(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_games(self, ctx: MessageContext, args: list[str]) -> None:
         """List all supported game types and their aliases."""
         games = ServerFactory.get_supported_games()
         game_list = []
@@ -317,7 +313,7 @@ class GameServerCommands:
             + f"\n\nDefault game: `{Config.DEFAULT_GAME}`"
         )
 
-    async def cmd_cmd(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_cmd(self, ctx: MessageContext, args: list[str]) -> None:
         """Send an ad-hoc admin command to the running game server."""
         if len(args) < 2:
             await ctx.send(
@@ -365,7 +361,7 @@ class GameServerCommands:
         except ServerControlError as e:
             await ctx.send(f"❌ Command failed: {e}")
 
-    async def cmd_backup(self, ctx: MessageContext, args: List[str]) -> None:
+    async def cmd_backup(self, ctx: MessageContext, args: list[str]) -> None:
         """Create a backup of the game server data."""
         game_type = args[0] if args else Config.DEFAULT_GAME
 
@@ -389,8 +385,8 @@ class GameServerCommands:
 
         try:
             # Use a thread-safe queue to communicate between backup thread and async loop
-            message_queue: queue.Queue[Optional[str]] = queue.Queue()
-            result_holder: List[Union[BackupResult, Exception]] = []
+            message_queue: queue.Queue[str | None] = queue.Queue()
+            result_holder: list[BackupResult | Exception] = []
             backup_complete = threading.Event()
 
             def progress_callback(message: str) -> None:
@@ -466,9 +462,7 @@ class GameServerCommands:
                 else:
                     await ctx.send(f"✅ {display_name} backup completed successfully!")
             else:
-                await ctx.send(
-                    f"⚠️ {display_name} backup completed with warnings: " f"{result.message}"
-                )
+                await ctx.send(f"⚠️ {display_name} backup completed with warnings: {result.message}")
 
         except ServerControlError as e:
             await ctx.send(f"❌ Backup failed: {e}")

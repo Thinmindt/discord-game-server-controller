@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Test script to simulate the buffer overflow issue."""
 
-import threading
-import time
-from src.project_zomboid_manager import ProjectZomboidServerManager
 from pathlib import Path
+
+from src.project_zomboid_manager import ProjectZomboidServerManager
 
 
 def test_buffer_overflow_scenario():
@@ -67,7 +66,7 @@ def test_buffer_overflow_scenario():
                     new_lines_found = current_buffer[i + 1 :]
                     break
 
-    print(f"\n✅ Results:")
+    print("\n✅ Results:")
     print(f"New lines found: {len(new_lines_found)}")
     print(f"New lines: {new_lines_found}")
 

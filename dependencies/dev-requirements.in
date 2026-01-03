@@ -1,5 +1,4 @@
-flake8
-black
+ruff
 mypy
 types-requests
 pytest

@@ -8,9 +8,9 @@ game server manager to create timestamped backups of server data.
 import logging
 import pathlib
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -18,9 +18,9 @@ class BackupResult:
     """Result of a backup operation."""
 
     success: bool
-    backup_path: Optional[pathlib.Path]
+    backup_path: pathlib.Path | None
     message: str
-    files_backed_up: List[str]
+    files_backed_up: list[str]
 
 
 class BackupUtility:
@@ -44,9 +44,9 @@ class BackupUtility:
 
     def create_backup(
         self,
-        paths_to_backup: Dict[str, pathlib.Path],
-        friendly_names: Optional[Dict[str, str]] = None,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        paths_to_backup: dict[str, pathlib.Path],
+        friendly_names: dict[str, str] | None = None,
+        progress_callback: Callable[[str], None] | None = None,
     ) -> BackupResult:
         """
         Create a backup of the specified paths.
@@ -74,8 +74,8 @@ class BackupUtility:
             )
 
         friendly_names = friendly_names or {}
-        files_backed_up: List[str] = []
-        errors: List[str] = []
+        files_backed_up: list[str] = []
+        errors: list[str] = []
 
         for name, source_path in paths_to_backup.items():
             try:
@@ -127,7 +127,7 @@ class BackupUtility:
     def cleanup_old_backups(
         self,
         max_backups: int = 6,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Callable[[str], None] | None = None,
     ) -> None:
         """
         Remove old backups, keeping only the most recent ones.
@@ -155,7 +155,7 @@ class BackupUtility:
                 except (OSError, shutil.Error) as e:
                     logging.warning(f"Failed to remove old backup {folder}: {e}")
 
-    def get_recent_backups(self, count: int = 3) -> List[str]:
+    def get_recent_backups(self, count: int = 3) -> list[str]:
         """
         Get the most recent backup timestamps as friendly formatted strings.
 
@@ -175,7 +175,7 @@ class BackupUtility:
 
         return formatted
 
-    def _get_backup_folders(self) -> List[Tuple[datetime, pathlib.Path]]:
+    def _get_backup_folders(self) -> list[tuple[datetime, pathlib.Path]]:
         """
         Get all backup folders for this identifier, sorted by timestamp descending.
 

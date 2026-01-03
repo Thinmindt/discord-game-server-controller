@@ -7,7 +7,6 @@ This allows you to test all the bot functionality without needing to connect to 
 
 import asyncio
 import sys
-from typing import List
 from dataclasses import dataclass
 
 from src.config import Config  # noqa: F401 - used in docstring
@@ -19,7 +18,7 @@ class MockContext:
     """Mock Discord context for CLI testing."""
 
     def __init__(self):
-        self.messages: List[str] = []
+        self.messages: list[str] = []
 
     async def send(self, message: str) -> None:
         """Mock the Discord ctx.send() method."""
@@ -35,52 +34,52 @@ class DiscordBotCLI:
         print("Type 'help' for available commands or 'quit' to exit")
         print("-" * 50)
 
-    async def cmd_start(self, args: List[str]) -> None:
+    async def cmd_start(self, args: list[str]) -> None:
         """Start the game server."""
         ctx = MockContext()
         await game_commands.cmd_start(ctx, args)
 
-    async def cmd_stop(self, args: List[str]) -> None:
+    async def cmd_stop(self, args: list[str]) -> None:
         """Stop the game server."""
         ctx = MockContext()
         await game_commands.cmd_stop(ctx, args)
 
-    async def cmd_restart(self, args: List[str]) -> None:
+    async def cmd_restart(self, args: list[str]) -> None:
         """Restart the game server."""
         ctx = MockContext()
         await game_commands.cmd_restart(ctx, args)
 
-    async def cmd_update(self, args: List[str]) -> None:
+    async def cmd_update(self, args: list[str]) -> None:
         """Update the server."""
         ctx = MockContext()
         await game_commands.cmd_update(ctx, args)
 
-    async def cmd_info(self, args: List[str]) -> None:
+    async def cmd_info(self, args: list[str]) -> None:
         """Display information about the running server."""
         ctx = MockContext()
         await game_commands.cmd_info(ctx, args)
 
-    async def cmd_ip(self, args: List[str]) -> None:
+    async def cmd_ip(self, args: list[str]) -> None:
         """Display the public IP address of the host."""
         ctx = MockContext()
         await game_commands.cmd_ip(ctx, args)
 
-    async def cmd_games(self, args: List[str]) -> None:
+    async def cmd_games(self, args: list[str]) -> None:
         """List all supported game types and their aliases."""
         ctx = MockContext()
         await game_commands.cmd_games(ctx, args)
 
-    async def cmd_cmd(self, args: List[str]) -> None:
+    async def cmd_cmd(self, args: list[str]) -> None:
         """Send an ad-hoc admin command to the running game server."""
         ctx = MockContext()
         await game_commands.cmd_cmd(ctx, args)
 
-    async def cmd_backup(self, args: List[str]) -> None:
+    async def cmd_backup(self, args: list[str]) -> None:
         """Create a backup of the server data."""
         ctx = MockContext()
         await game_commands.cmd_backup(ctx, args)
 
-    def cmd_help(self, args: List[str]) -> None:
+    def cmd_help(self, args: list[str]) -> None:
         """Show help information."""
         help_text = """
 🤖 Discord Bot CLI Commands:
