@@ -120,6 +120,20 @@ async def send_server_command(ctx: commands.Context, *args):
     await game_commands.cmd_cmd(discord_ctx, list(args))
 
 
+@bot.command(name="backup")
+async def backup_server(ctx: commands.Context, game_type: Optional[str] = None):
+    """Create a backup of the game server data.
+
+    Usage: !backup [game_type]
+    Examples: !backup pz, !backup, !backup project_zomboid
+
+    The server must be stopped before creating a backup.
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_backup(discord_ctx, args)
+
+
 def main():
     """Main entry point for the Discord bot."""
     if Config.TOKEN is None:

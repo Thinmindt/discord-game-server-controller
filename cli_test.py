@@ -75,6 +75,11 @@ class DiscordBotCLI:
         ctx = MockContext()
         await game_commands.cmd_cmd(ctx, args)
 
+    async def cmd_backup(self, args: List[str]) -> None:
+        """Create a backup of the server data."""
+        ctx = MockContext()
+        await game_commands.cmd_backup(ctx, args)
+
     def cmd_help(self, args: List[str]) -> None:
         """Show help information."""
         help_text = """
@@ -144,6 +149,8 @@ Default game: {Config.DEFAULT_GAME}
                     await self.cmd_games(args)
                 elif command == "cmd":
                     await self.cmd_cmd(args)
+                elif command == "backup":
+                    await self.cmd_backup(args)
                 else:
                     print(f"❌ Unknown command: {command}")
                     print("Type 'help' for available commands.")

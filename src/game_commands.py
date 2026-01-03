@@ -6,8 +6,11 @@ the Discord bot (main.py) and CLI tester (cli_test.py).
 """
 
 import asyncio
+import queue
+import threading
 from typing import List, Optional, Protocol, Dict, cast
 
+from src.backup_manager import BackupUtility
 from src.config import Config
 from src.game_server_interface import GameServerManager, ServerControlError
 from src.server_factory import ServerFactory
@@ -361,6 +364,112 @@ class GameServerCommands:
 
         except ServerControlError as e:
             await ctx.send(f"❌ Command failed: {e}")
+
+    async def cmd_backup(self, ctx: MessageContext, args: List[str]) -> None:
+        """Create a backup of the game server data."""
+        game_type = args[0] if args else Config.DEFAULT_GAME
+
+        found_game = self._find_supported_game(game_type)
+
+        if not found_game:
+            supported = self._get_all_supported_aliases()
+            await ctx.send(
+                f"Unsupported game type '{game_type}'. Supported games: {', '.join(supported)}"
+            )
+            return
+
+        try:
+            manager = self.get_server_manager(game_type)
+            display_name = self._format_game_name(found_game)
+        except ValueError as e:
+            await ctx.send(f"Error: {str(e)}")
+            return
+
+        await ctx.send(f"💾 Starting backup of {display_name} server...")
+
+        try:
+            # Use a thread-safe queue to communicate between backup thread and async loop
+            message_queue: queue.Queue[Optional[str]] = queue.Queue()
+            result_holder: List = []  # To store result or exception from backup thread
+            backup_complete = threading.Event()
+
+            def progress_callback(message: str) -> None:
+                """Called by backup_server to report progress."""
+                message_queue.put(message)
+
+            def run_backup() -> None:
+                """Run backup in a separate thread."""
+                try:
+                    result = manager.backup_server(progress_callback)
+                    result_holder.append(("success", result))
+                except Exception as e:
+                    result_holder.append(("error", e))
+                finally:
+                    backup_complete.set()
+                    message_queue.put(None)  # Signal completion
+
+            # Start backup in a separate thread
+            backup_thread = threading.Thread(target=run_backup)
+            backup_thread.start()
+
+            # Process messages as they come in, with periodic "still working" messages
+            last_message_time = asyncio.get_event_loop().time()
+            still_working_interval = 10  # seconds
+
+            while not backup_complete.is_set() or not message_queue.empty():
+                try:
+                    # Check for new messages with a short timeout
+                    message = message_queue.get(timeout=0.5)
+                    if message is None:
+                        # Completion signal
+                        break
+                    await ctx.send(message)
+                    last_message_time = asyncio.get_event_loop().time()
+                except queue.Empty:
+                    # No message available, check if we should send "still working"
+                    current_time = asyncio.get_event_loop().time()
+                    if current_time - last_message_time >= still_working_interval:
+                        await ctx.send("⏳ Still working on backup...")
+                        last_message_time = current_time
+                    # Let other async tasks run
+                    await asyncio.sleep(0.1)
+
+            # Wait for backup thread to finish
+            backup_thread.join()
+
+            # Check result
+            if not result_holder:
+                raise ServerControlError("Backup failed unexpectedly")
+
+            status, result_or_error = result_holder[0]
+            if status == "error":
+                raise result_or_error
+
+            result = result_or_error
+
+            if result.success:
+                # Get recent backups for display using BackupUtility
+                backup_dir = result.backup_path.parent if result.backup_path else None
+                server_name = getattr(manager, "server_name", None)
+
+                if backup_dir and server_name:
+                    backup_utility = BackupUtility(backup_dir, server_name)
+                    recent_backups = backup_utility.get_recent_backups(count=3)
+                    if recent_backups:
+                        backup_list = "\n".join(f"  • {ts}" for ts in recent_backups)
+                        await ctx.send(
+                            f"✅ {display_name} backup completed successfully!\n\n"
+                            f"**Recent backups:**\n{backup_list}"
+                        )
+                    else:
+                        await ctx.send(f"✅ {display_name} backup completed successfully!")
+                else:
+                    await ctx.send(f"✅ {display_name} backup completed successfully!")
+            else:
+                await ctx.send(f"⚠️ {display_name} backup completed with warnings: {result.message}")
+
+        except ServerControlError as e:
+            await ctx.send(f"❌ Backup failed: {e}")
 
 
 # Global instance that can be shared

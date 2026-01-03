@@ -17,6 +17,7 @@ class Config:
     PZ_SERVER_PATH = pathlib.Path(os.getenv("PZ_SERVER_PATH") or os.getenv("SERVER_PATH") or "")
     PZ_SERVER_NAME = os.getenv("PZ_SERVER_NAME", "servertest")
     PZ_MEMORY_GB = int(os.getenv("PZ_MEMORY_GB", "4"))
+    PZ_BACKUP_PATH = pathlib.Path(os.getenv("PZ_BACKUP_PATH") or "D:\\ZomboidServerBackup")
 
     # Common configs
     STEAM_CMD_PATH = pathlib.Path(os.getenv("STEAM_CMD_PATH") or "")

@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 import pathlib
+
+from src.backup_manager import BackupResult
 
 
 @dataclass
@@ -82,6 +84,35 @@ class GameServerManager(ABC):
             ServerControlError: If the server doesn't support commands or command fails
         """
         raise ServerControlError("This game server does not support ad-hoc commands")
+
+    def backup_server(
+        self, progress_callback: Optional[Callable[[str], None]] = None
+    ) -> BackupResult:
+        """
+        Create a backup of the server data.
+
+        Args:
+            progress_callback: Optional callback function that receives progress messages
+
+        Returns:
+            BackupResult with success status, backup path, and list of files backed up
+
+        Raises:
+            ServerControlError: If backup is not supported or fails
+        """
+        raise ServerControlError("This game server does not support backups")
+
+    def get_backup_paths(self) -> Dict[str, pathlib.Path]:
+        """
+        Get the paths that would be backed up.
+
+        Returns:
+            Dictionary mapping backup item names to their paths
+
+        Raises:
+            ServerControlError: If backup is not supported
+        """
+        raise ServerControlError("This game server does not support backups")
 
 
 class ServerControlError(Exception):

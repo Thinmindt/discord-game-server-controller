@@ -1,15 +1,18 @@
+import logging
 import os
 import pathlib
 import subprocess
 import threading
 import time
-from typing import Optional, List
+from typing import Callable, Dict, Optional, List
 
+from src.backup_manager import BackupResult, BackupUtility
 from src.game_server_interface import (
     GameServerManager,
     ServerInfo,
     ServerControlError,
 )
+from src.config import Config
 
 
 class ProjectZomboidServerManager(GameServerManager):
@@ -476,3 +479,73 @@ class ProjectZomboidServerManager(GameServerManager):
 
         except Exception as e:
             raise ServerControlError(f"Failed to send command '{command}': {e}")
+
+    def get_backup_paths(self) -> Dict[str, pathlib.Path]:
+        """
+        Get the paths that would be backed up for Project Zomboid.
+
+        Returns:
+            Dictionary mapping backup item names to their paths
+        """
+        user_profile = pathlib.Path(os.environ.get("USERPROFILE", os.path.expanduser("~")))
+        zomboid_dir = user_profile / "Zomboid"
+
+        return {
+            "server_ini": zomboid_dir / "Server" / f"{self.server_name}.ini",
+            "sandbox_vars": zomboid_dir / "Server" / f"{self.server_name}_SandboxVars.lua",
+            "spawnpoints": zomboid_dir / "Server" / f"{self.server_name}_spawnpoints.lua",
+            "spawnregions": zomboid_dir / "Server" / f"{self.server_name}_spawnregions.lua",
+            "saves_folder": zomboid_dir / "Saves" / "Multiplayer" / self.server_name,
+            "player_database": zomboid_dir / "db" / f"{self.server_name}.db",
+        }
+
+    def backup_server(
+        self, progress_callback: Optional[Callable[[str], None]] = None
+    ) -> BackupResult:
+        """
+        Create a backup of the Project Zomboid server data.
+
+        Args:
+            progress_callback: Optional callback function that receives progress messages
+
+        Returns:
+            BackupResult with success status, backup path, and list of files backed up
+
+        Raises:
+            ServerControlError: If the server is running or backup fails
+        """
+        # Don't allow backup while server is running
+        if self.is_on():
+            raise ServerControlError(
+                "Cannot backup while the server is running. Please stop the server first."
+            )
+
+        # Friendly names for progress messages
+        friendly_names = {
+            "server_ini": "server configuration",
+            "sandbox_vars": "sandbox settings",
+            "spawnpoints": "spawn points",
+            "spawnregions": "spawn regions",
+            "saves_folder": "world saves",
+            "player_database": "player database",
+        }
+
+        # Use the backup utility
+        backup_utility = BackupUtility(Config.PZ_BACKUP_PATH, self.server_name)
+        result = backup_utility.create_backup(
+            paths_to_backup=self.get_backup_paths(),
+            friendly_names=friendly_names,
+            progress_callback=progress_callback,
+        )
+
+        # Check if backup failed before cleanup
+        if not result.files_backed_up:
+            raise ServerControlError(
+                f"No files found to backup for server '{self.server_name}'. "
+                "Check that the server name is correct and the server has been run at least once."
+            )
+
+        # Clean up old backups, keeping only the 6 most recent
+        backup_utility.cleanup_old_backups(max_backups=6, progress_callback=progress_callback)
+
+        return result
