@@ -13,9 +13,11 @@ class TestPalWorldSettings(unittest.TestCase):
 OptionSettings=(Difficulty=None,DayTimeSpeedRate=1.000000,ExpRate=1.000000,ServerName="TestServer",bIsPvP=False,PublicPort=8211,CrossplayPlatforms=(Steam,Xbox,PS5))
 """
         # Create a temporary file for testing
-        self.temp_file = tempfile.NamedTemporaryFile(delete=False)
-        with open(self.temp_file.name, "w") as f:
-            f.write(self.sample_ini)
+        self.temp_file = tempfile.NamedTemporaryFile(
+            delete=False, mode="w"
+        )  # noqa: SIM115
+        self.temp_file.write(self.sample_ini)
+        self.temp_file.close()
 
         self.settings = PalWorldSettings(self.temp_file.name)
 
@@ -48,7 +50,9 @@ OptionSettings=(Difficulty=None,DayTimeSpeedRate=1.000000,ExpRate=1.000000,Serve
 
     def test_parse_array_value(self):
         """Test parsing array values"""
-        self.assertEqual(self.settings._parse_value("(Steam,Xbox,PS5)"), ["Steam", "Xbox", "PS5"])
+        self.assertEqual(
+            self.settings._parse_value("(Steam,Xbox,PS5)"), ["Steam", "Xbox", "PS5"]
+        )
         self.assertEqual(self.settings._parse_value("(1,2,3)"), [1, 2, 3])
         self.assertEqual(self.settings._parse_value('("a","b","c")'), ["a", "b", "c"])
         self.assertEqual(self.settings._parse_value("()"), [])
@@ -58,7 +62,9 @@ OptionSettings=(Difficulty=None,DayTimeSpeedRate=1.000000,ExpRate=1.000000,Serve
         self.assertEqual(self.settings.get("ServerName"), "TestServer")
         self.assertEqual(self.settings.get("ExpRate"), 1.0)
         self.assertEqual(self.settings.get("bIsPvP"), False)
-        self.assertEqual(self.settings.get("CrossplayPlatforms"), ["Steam", "Xbox", "PS5"])
+        self.assertEqual(
+            self.settings.get("CrossplayPlatforms"), ["Steam", "Xbox", "PS5"]
+        )
         self.assertIsNone(self.settings.get("NonExistentSetting"))
 
     def test_set_setting(self):
@@ -106,25 +112,30 @@ OptionSettings=(Difficulty=None,DayTimeSpeedRate=1.000000,ExpRate=1.000000,Serve
 
     def test_parse_complex_nested_structure(self):
         """Test parsing a complex nested structure"""
-        complex_value = '(NestedValue1=(SubKey1="Value1",SubKey2=123),NestedValue2=(SubKey3=True))'
+        complex_value = (
+            '(NestedValue1=(SubKey1="Value1",SubKey2=123),NestedValue2=(SubKey3=True))'
+        )
         # Since our parser doesn't fully support nested structures,
         # this will just test the current behavior
         parsed = self.settings._parse_value(complex_value)
         # In the current implementation, this would be parsed in a simpler way
-        self.assertTrue(isinstance(parsed, list) or isinstance(parsed, str))
+        self.assertTrue(isinstance(parsed, (list, str)))
 
     def test_parsing_with_quotes_and_commas(self):
         """Test parsing values with quotes and commas inside strings"""
-        with patch(
-            "builtins.open",
-            mock_open(
-                read_data=(
-                    "[/Script/Pal.PalGameWorldSettings]\n"
-                    'OptionSettings=(ServerName="Test, with comma",'
-                    'Description="Test ""with"" quotes")\n'
-                )
+        with (
+            patch(
+                "builtins.open",
+                mock_open(
+                    read_data=(
+                        "[/Script/Pal.PalGameWorldSettings]\n"
+                        'OptionSettings=(ServerName="Test, with comma",'
+                        'Description="Test ""with"" quotes")\n'
+                    )
+                ),
             ),
-        ), patch.object(os.path, "exists", return_value=True):
+            patch.object(os.path, "exists", return_value=True),
+        ):
             settings = PalWorldSettings("fake_path.ini")
             # With the current implementation, these might not parse perfectly,
             # but we can assert current behavior

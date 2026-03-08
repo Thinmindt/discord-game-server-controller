@@ -1,9 +1,11 @@
+import json
 import os
 import pathlib
 import subprocess
 import threading
 import time
 from collections.abc import Callable
+from datetime import datetime
 
 from src.backup_manager import BackupResult, BackupUtility
 from src.config import Config
@@ -17,6 +19,11 @@ from src.game_server_interface import (
 class ProjectZomboidServerManager(GameServerManager):
     """Unified Project Zomboid server manager with log-based monitoring."""
 
+    # Version state file name
+    VERSION_STATE_FILE = "pz_version_state.json"
+    # SteamCMD log file name
+    STEAMCMD_LOG_FILE = "steamcmd_output.log"
+
     def __init__(
         self,
         server_path: pathlib.Path,
@@ -25,7 +32,7 @@ class ProjectZomboidServerManager(GameServerManager):
         memory_gb: int = 4,
     ):
         super().__init__(server_path, steam_cmd_path)
-        self.server_name = server_name
+        self._base_server_name = server_name  # Store the base name from config
         self.memory_gb = memory_gb
         self.server_process: subprocess.Popen[str] | None = None
         self._server_started = False
@@ -34,6 +41,111 @@ class ProjectZomboidServerManager(GameServerManager):
         self._log_lines_lock = threading.Lock()  # Add thread safety for log lines
         self._monitor_thread: threading.Thread | None = None
         self._stop_monitoring = False
+
+    def _get_steamcmd_log_path(self) -> pathlib.Path:
+        """Get the path to the SteamCMD log file."""
+        # Store in the logs directory if it exists, otherwise in the server directory
+        logs_dir = pathlib.Path(__file__).parent.parent / "logs"
+        if logs_dir.exists():
+            return logs_dir / self.STEAMCMD_LOG_FILE
+        server_dir = (
+            self.server_path.parent if self.server_path.is_file() else self.server_path
+        )
+        return server_dir / self.STEAMCMD_LOG_FILE
+
+    def _run_steamcmd(self, cmd: list[str], operation: str = "update") -> str:
+        """
+        Run a SteamCMD command and log the output to a file.
+
+        Args:
+            cmd: The SteamCMD command to run
+            operation: Description of the operation for logging
+
+        Returns:
+            The stdout from SteamCMD
+
+        Raises:
+            subprocess.CalledProcessError: If SteamCMD returns non-zero exit code
+        """
+        log_path = self._get_steamcmd_log_path()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Log the command being run
+        with open(log_path, "a", encoding="utf-8") as log_file:
+            log_file.write(f"\n{'='*60}\n")
+            log_file.write(f"[{timestamp}] SteamCMD {operation}\n")
+            log_file.write(f"Command: {' '.join(cmd)}\n")
+            log_file.write(f"{'='*60}\n\n")
+
+        print(f"Running SteamCMD... (log: {log_path})")
+
+        # Run SteamCMD and capture output
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+        # Log stdout and stderr (handle None or non-string values gracefully)
+        stdout_text = str(result.stdout) if result.stdout else ""
+        stderr_text = str(result.stderr) if result.stderr else ""
+
+        with open(log_path, "a", encoding="utf-8") as log_file:
+            if stdout_text:
+                log_file.write("--- STDOUT ---\n")
+                log_file.write(stdout_text)
+                log_file.write("\n")
+            if stderr_text:
+                log_file.write("--- STDERR ---\n")
+                log_file.write(stderr_text)
+                log_file.write("\n")
+            log_file.write(f"\n[Exit code: {result.returncode}]\n")
+
+        # Check for errors and raise if failed
+        if result.returncode != 0:
+            print(f"SteamCMD failed! Check log at: {log_path}")
+
+            # Raise a CalledProcessError to maintain compatibility
+            error = subprocess.CalledProcessError(
+                result.returncode, cmd, result.stdout, result.stderr
+            )
+            raise error
+
+        return result.stdout
+
+    @property
+    def server_name(self) -> str:
+        """Get the server name based on the current version branch."""
+        current_branch = self._get_current_branch()
+        if current_branch == "beta":
+            return f"{self._base_server_name}_b42"
+        return self._base_server_name
+
+    def _get_version_state_path(self) -> pathlib.Path:
+        """Get the path to the version state file."""
+        server_dir = (
+            self.server_path.parent if self.server_path.is_file() else self.server_path
+        )
+        return server_dir / self.VERSION_STATE_FILE
+
+    def _get_current_branch(self) -> str:
+        """Get the current branch from the state file, defaulting to 'stable'."""
+        state_path = self._get_version_state_path()
+        if state_path.exists():
+            try:
+                with open(state_path) as f:
+                    state = json.load(f)
+                    branch = state.get("current_branch", "stable")
+                    return str(branch) if branch else "stable"
+            except (json.JSONDecodeError, OSError):
+                pass
+        return "stable"
+
+    def _save_version_state(self, branch: str) -> None:
+        """Save the current branch to the state file."""
+        state_path = self._get_version_state_path()
+        state = {
+            "current_branch": branch,
+            "last_updated": datetime.now().isoformat(),
+        }
+        with open(state_path, "w") as f:
+            json.dump(state, f, indent=2)
 
     def is_on(self) -> bool:
         """Return True if the server process is running and has started successfully."""
@@ -68,11 +180,19 @@ class ProjectZomboidServerManager(GameServerManager):
             if "Server is listening on port" in line:
                 # Extract port info
                 if "port 16261" in line and "port 16262" in line:
-                    additional_info = {"steam_port": 16261, "udp_port": 16262, "status": "Running"}
+                    additional_info = {
+                        "steam_port": 16261,
+                        "udp_port": 16262,
+                        "status": "Running",
+                    }
                     break
             elif "port 16261" in line or "port 16262" in line:
                 # Fallback for different log formats
-                additional_info = {"steam_port": 16261, "udp_port": 16262, "status": "Running"}
+                additional_info = {
+                    "steam_port": 16261,
+                    "udp_port": 16262,
+                    "status": "Running",
+                }
                 break
 
         server_info.additional_info = additional_info if additional_info else None
@@ -97,7 +217,9 @@ class ProjectZomboidServerManager(GameServerManager):
 
     def _start_windows_server(self) -> None:
         """Start Project Zomboid server on Windows."""
-        server_dir = self.server_path.parent if self.server_path.is_file() else self.server_path
+        server_dir = (
+            self.server_path.parent if self.server_path.is_file() else self.server_path
+        )
         original_batch_file = server_dir / "StartServer64.bat"
 
         if not original_batch_file.exists():
@@ -123,7 +245,9 @@ class ProjectZomboidServerManager(GameServerManager):
 
     def _start_linux_server(self) -> None:
         """Start Project Zomboid server on Linux."""
-        server_dir = self.server_path.parent if self.server_path.is_file() else self.server_path
+        server_dir = (
+            self.server_path.parent if self.server_path.is_file() else self.server_path
+        )
         start_script = server_dir / "start-server.sh"
 
         if not start_script.exists():
@@ -180,7 +304,11 @@ class ProjectZomboidServerManager(GameServerManager):
                     print("-" * 50)
 
                 # Check for shutdown messages
-                elif "Saving world" in line or "Server shutdown" in line or "Goodbye" in line:
+                elif (
+                    "Saving world" in line
+                    or "Server shutdown" in line
+                    or "Goodbye" in line
+                ):
                     print(f"🛑 {line}")
 
                 # Check for port information
@@ -222,7 +350,9 @@ class ProjectZomboidServerManager(GameServerManager):
             print("Server shut down gracefully")
 
         except subprocess.TimeoutExpired:
-            print(f"Graceful shutdown timed out after {wait_time}s, terminating process...")
+            print(
+                f"Graceful shutdown timed out after {wait_time}s, terminating process..."
+            )
             self.server_process.terminate()
 
             try:
@@ -291,33 +421,333 @@ class ProjectZomboidServerManager(GameServerManager):
             )
 
     def update_server(self) -> None:
-        """Update the Project Zomboid server using SteamCMD."""
+        """Update the Project Zomboid server using SteamCMD for the current branch."""
         if self.is_on():
-            raise ServerControlError("Cannot update server while it's running. Stop it first.")
+            raise ServerControlError(
+                "Cannot update server while it's running. Stop it first."
+            )
 
-        # Project Zomboid server app ID is 380870
-        cmd = [
-            str(self.steam_cmd_path),
-            "+force_install_dir",
-            str(self.server_path.parent),
-            "+login",
-            "anonymous",
-            "+app_update",
-            "380870",  # Project Zomboid Dedicated Server
-            "validate",
-            "+quit",
-        ]
+        current_branch = self._get_current_branch()
+        cmd = self._build_steamcmd_update_command(current_branch)
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            print(f"SteamCMD output: {result.stdout}")
+            output = self._run_steamcmd(cmd, operation="update")
+            print(f"SteamCMD output: {output}")
         except subprocess.CalledProcessError as error:
             if error.returncode == 10:
                 print("Timeout... Please try again.")
             elif error.returncode == 134:
                 print("SteamCMD error occurred. Try again.")
 
-            raise ServerControlError(f"SteamCMD update failed with: {error}")
+            raise ServerControlError(
+                f"SteamCMD update failed with exit code {error.returncode}. "
+                f"Check log: {self._get_steamcmd_log_path()}"
+            ) from error
+
+    def _build_steamcmd_update_command(self, branch: str) -> list[str]:
+        """Build the SteamCMD command for updating to a specific branch."""
+        server_dir = (
+            self.server_path.parent if self.server_path.is_file() else self.server_path
+        )
+        cmd = [
+            str(self.steam_cmd_path),
+            "+force_install_dir",
+            str(server_dir),
+            "+login",
+            "anonymous",
+            "+app_update",
+            "380870",  # Project Zomboid Dedicated Server
+        ]
+
+        # Add beta flag if not stable
+        if branch == "beta":
+            cmd.extend(["-beta", Config.PZ_BETA_BRANCH])
+
+        cmd.extend(["validate", "+quit"])
+        return cmd
+
+    def get_version(self) -> dict[str, str]:
+        """
+        Get the current version/branch information for the server.
+
+        Returns:
+            Dictionary with 'branch' (stable/beta), 'server_name', and version info
+        """
+        current_branch = self._get_current_branch()
+        branch_display = (
+            "Build 41 (Stable)" if current_branch == "stable" else "Build 42 (Beta)"
+        )
+
+        return {
+            "branch": current_branch,
+            "branch_display": branch_display,
+            "server_name": self.server_name,
+            "base_server_name": self._base_server_name,
+        }
+
+    def set_version(self, branch: str) -> str:
+        """
+        Switch the server to a different version/branch.
+
+        Args:
+            branch: The branch to switch to ('stable', 'b41', 'beta', 'b42')
+
+        Returns:
+            A message describing the result of the operation
+
+        Raises:
+            ServerControlError: If server is running or update fails
+        """
+        if self.is_on():
+            raise ServerControlError(
+                "Cannot switch versions while the server is running. Stop it first."
+            )
+
+        # Normalize branch name
+        normalized_branch = self._normalize_branch_name(branch)
+        current_branch = self._get_current_branch()
+
+        # Check if already on this branch
+        if normalized_branch == current_branch:
+            branch_display = (
+                "Build 41 (Stable)"
+                if normalized_branch == "stable"
+                else "Build 42 (Beta)"
+            )
+            return (
+                f"Server is already on {branch_display}.\n"
+                f"Server name: `{self.server_name}`\n"
+                "No update needed."
+            )
+
+        # Determine old and new server names for messaging
+        old_server_name = self.server_name  # Current name before switch
+        new_server_name = (
+            f"{self._base_server_name}_b42"
+            if normalized_branch == "beta"
+            else self._base_server_name
+        )
+
+        # Check if this is a first-time switch (config doesn't exist yet)
+        is_first_time = self._is_first_time_version(normalized_branch)
+
+        # Save the new branch state
+        self._save_version_state(normalized_branch)
+
+        # Build and run SteamCMD update
+        cmd = self._build_steamcmd_update_command(normalized_branch)
+
+        try:
+            output = self._run_steamcmd(
+                cmd, operation=f"version switch to {normalized_branch}"
+            )
+            print(f"SteamCMD output: {output}")
+        except subprocess.CalledProcessError as error:
+            # Restore previous state on failure
+            self._save_version_state(current_branch)
+            log_path = self._get_steamcmd_log_path()
+            if error.returncode == 10:
+                raise ServerControlError(
+                    f"SteamCMD timed out. Please try again. Check log: {log_path}"
+                ) from error
+            elif error.returncode == 134:
+                raise ServerControlError(
+                    f"SteamCMD error occurred. Try again. Check log: {log_path}"
+                ) from error
+            raise ServerControlError(
+                f"SteamCMD update failed with exit code {error.returncode}. "
+                f"Check log: {log_path}"
+            ) from error
+
+        # Build response message
+        branch_display = (
+            "Build 41 (Stable)" if normalized_branch == "stable" else "Build 42 (Beta)"
+        )
+        messages = [
+            f"✅ Successfully switched to {branch_display}!",
+            f"Server name changed: `{old_server_name}` → `{new_server_name}`",
+        ]
+
+        if is_first_time:
+            user_profile = pathlib.Path(
+                os.environ.get("USERPROFILE", os.path.expanduser("~"))
+            )
+            config_path = user_profile / "Zomboid" / "Server" / f"{new_server_name}.ini"
+            messages.extend(
+                [
+                    "",
+                    "⚠️ **First-time setup for this version!**",
+                    "A new server config will be generated on first start.",
+                    f"Config location: `{config_path}`",
+                    "",
+                    "You may want to copy settings (admin password, etc.) from your other config:",
+                    f"  `{user_profile / 'Zomboid' / 'Server' / f'{old_server_name}.ini'}`",
+                ]
+            )
+
+        messages.extend(
+            [
+                "",
+                "📝 **Note:** Saves are independent between versions.",
+                "Your progress on each version is preserved separately.",
+            ]
+        )
+
+        return "\n".join(messages)
+
+    def _normalize_branch_name(self, branch: str) -> str:
+        """Normalize branch name to 'stable' or 'beta'."""
+        branch_lower = branch.lower().strip()
+        if branch_lower in ["stable", "b41"]:
+            return "stable"
+        elif branch_lower in ["beta", "b42"]:
+            return "beta"
+        else:
+            raise ServerControlError(
+                f"Invalid branch '{branch}'. Use 'stable', 'b41', 'beta', or 'b42'."
+            )
+
+    def _is_first_time_version(self, branch: str) -> bool:
+        """Check if this is the first time switching to this branch (no config exists)."""
+        # Determine server name for this branch
+        test_server_name = (
+            f"{self._base_server_name}_b42"
+            if branch == "beta"
+            else self._base_server_name
+        )
+        user_profile = pathlib.Path(
+            os.environ.get("USERPROFILE", os.path.expanduser("~"))
+        )
+        config_path = user_profile / "Zomboid" / "Server" / f"{test_server_name}.ini"
+        return not config_path.exists()
+
+    def get_available_versions(self) -> list[dict[str, str | bool]]:
+        """
+        Get the list of available versions/branches for Project Zomboid.
+
+        Returns:
+            List of dictionaries with 'id', 'name', 'description', and 'selected' for each version
+        """
+        current_branch = self._get_current_branch()
+
+        return [
+            {
+                "id": "stable",
+                "name": "Build 41 (Stable)",
+                "description": "Current stable release",
+                "selected": current_branch == "stable",
+            },
+            {
+                "id": "beta",
+                "name": "Build 42 (Beta)",
+                "description": f"Unstable beta branch ({Config.PZ_BETA_BRANCH})",
+                "selected": current_branch == "beta",
+            },
+        ]
+
+    def compare_configs(self) -> dict[str, object]:
+        """
+        Compare the server configurations between stable and beta versions.
+
+        Returns:
+            Dictionary containing:
+                - 'stable_path': Path to stable config
+                - 'beta_path': Path to beta config
+                - 'stable_exists': Whether stable config exists
+                - 'beta_exists': Whether beta config exists
+                - 'differences': List of key differences (if both exist)
+                - 'stable_settings': Important settings from stable (if exists)
+                - 'beta_settings': Important settings from beta (if exists)
+        """
+        user_profile = pathlib.Path(
+            os.environ.get("USERPROFILE", os.path.expanduser("~"))
+        )
+        server_dir = user_profile / "Zomboid" / "Server"
+
+        stable_config_path = server_dir / f"{self._base_server_name}.ini"
+        beta_config_path = server_dir / f"{self._base_server_name}_b42.ini"
+
+        result: dict[str, object] = {
+            "stable_path": str(stable_config_path),
+            "beta_path": str(beta_config_path),
+            "stable_exists": stable_config_path.exists(),
+            "beta_exists": beta_config_path.exists(),
+            "differences": [],
+            "stable_settings": {},
+            "beta_settings": {},
+        }
+
+        # Important settings to highlight
+        important_keys = [
+            "AdminPassword",
+            "Password",
+            "ServerName",
+            "PublicName",
+            "MaxPlayers",
+            "DefaultPort",
+            "UDPPort",
+            "SteamPort1",
+            "SteamPort2",
+            "RCONPort",
+            "PVP",
+            "PauseEmpty",
+            "Open",
+            "Public",
+            "ServerWelcomeMessage",
+            "Mods",
+            "Map",
+            "WorkshopItems",
+        ]
+
+        def parse_ini(path: pathlib.Path) -> dict[str, str]:
+            """Parse an INI file and return a dict of key-value pairs."""
+            settings: dict[str, str] = {}
+            try:
+                with open(path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if "=" in line and not line.startswith("#"):
+                            key, _, value = line.partition("=")
+                            settings[key.strip()] = value.strip()
+            except (OSError, UnicodeDecodeError):
+                pass
+            return settings
+
+        # Parse configs if they exist
+        stable_settings: dict[str, str] = {}
+        beta_settings: dict[str, str] = {}
+
+        if stable_config_path.exists():
+            stable_settings = parse_ini(stable_config_path)
+            result["stable_settings"] = {
+                k: stable_settings.get(k, "<not set>") for k in important_keys
+            }
+
+        if beta_config_path.exists():
+            beta_settings = parse_ini(beta_config_path)
+            result["beta_settings"] = {
+                k: beta_settings.get(k, "<not set>") for k in important_keys
+            }
+
+        # Find differences if both configs exist
+        if stable_config_path.exists() and beta_config_path.exists():
+            differences: list[dict[str, str]] = []
+            for key in important_keys:
+                stable_val = stable_settings.get(key, "<not set>")
+                beta_val = beta_settings.get(key, "<not set>")
+                if stable_val != beta_val:
+                    differences.append(
+                        {"key": key, "stable": stable_val, "beta": beta_val}
+                    )
+            result["differences"] = differences
+
+        return result
+
+    def get_backup_path_for_branch(self, branch: str | None = None) -> pathlib.Path:
+        """Get the backup path for a specific branch or the current branch."""
+        if branch is None:
+            branch = self._get_current_branch()
+        return Config.PZ_BACKUP_PATH / branch
 
     def get_default_port(self) -> int:
         """Get the default port for Project Zomboid server."""
@@ -340,16 +770,15 @@ class ProjectZomboidServerManager(GameServerManager):
             raise ServerControlError("Cannot send command: Server is not running")
 
         if not self.server_process or not self.server_process.stdin:
-            raise ServerControlError("Cannot send command: No stdin connection to server")
+            raise ServerControlError(
+                "Cannot send command: No stdin connection to server"
+            )
 
         try:
             # Store marker for tracking new output - use timestamp-based approach
             with self._log_lines_lock:
                 # Get the last few lines to use as a marker
-                if self._log_lines:
-                    marker_lines = self._log_lines[-2:]  # Use last 2 lines as marker
-                else:
-                    marker_lines = []
+                marker_lines = self._log_lines[-2:] if self._log_lines else []
                 buffer_size_before = len(self._log_lines)
 
             print(f"DEBUG: Initial buffer size: {buffer_size_before}")
@@ -388,19 +817,20 @@ class ProjectZomboidServerManager(GameServerManager):
                     # Find the position of our marker
                     marker_found = False
                     for i, line in enumerate(current_buffer):
-                        if not marker_found:
-                            # Look for the last marker line
-                            if line == marker_lines[-1]:
-                                marker_found = True
-                                # Collect everything after the marker
-                                new_lines_found = current_buffer[i + 1 :]
-                                break
+                        # Look for the last marker line
+                        if not marker_found and line == marker_lines[-1]:
+                            marker_found = True
+                            # Collect everything after the marker
+                            new_lines_found = current_buffer[i + 1 :]
+                            break
                 else:
                     # No marker (empty buffer before), so everything is new
                     new_lines_found = current_buffer
 
                 if waited_time % 1.0 < check_interval:  # Debug every second
-                    print(f"DEBUG: After {waited_time:.1f}s - New logs: {len(new_lines_found)}")
+                    print(
+                        f"DEBUG: After {waited_time:.1f}s - New logs: {len(new_lines_found)}"
+                    )
 
                 if new_lines_found:
                     # We got some output, wait a bit more to capture any additional lines
@@ -417,11 +847,10 @@ class ProjectZomboidServerManager(GameServerManager):
                     if marker_lines:
                         marker_found = False
                         for i, line in enumerate(final_buffer):
-                            if not marker_found:
-                                if line == marker_lines[-1]:
-                                    marker_found = True
-                                    final_new_lines = final_buffer[i + 1 :]
-                                    break
+                            if not marker_found and line == marker_lines[-1]:
+                                marker_found = True
+                                final_new_lines = final_buffer[i + 1 :]
+                                break
                     else:
                         final_new_lines = final_buffer
                     new_lines_found = final_new_lines
@@ -436,11 +865,10 @@ class ProjectZomboidServerManager(GameServerManager):
                 if marker_lines:
                     marker_found = False
                     for i, line in enumerate(final_buffer):
-                        if not marker_found:
-                            if line == marker_lines[-1]:
-                                marker_found = True
-                                new_lines_found = final_buffer[i + 1 :]
-                                break
+                        if not marker_found and line == marker_lines[-1]:
+                            marker_found = True
+                            new_lines_found = final_buffer[i + 1 :]
+                            break
                 else:
                     new_lines_found = final_buffer
 
@@ -460,7 +888,9 @@ class ProjectZomboidServerManager(GameServerManager):
                             if len(parts) >= 3:
                                 message = parts[2].strip()
                                 # Skip the echo of the command itself
-                                if not message.startswith("command entered via server console"):
+                                if not message.startswith(
+                                    "command entered via server console"
+                                ):
                                     response_lines.append(message)
                             else:
                                 response_lines.append(line)
@@ -478,7 +908,7 @@ class ProjectZomboidServerManager(GameServerManager):
                 )
 
         except Exception as e:
-            raise ServerControlError(f"Failed to send command '{command}': {e}")
+            raise ServerControlError(f"Failed to send command '{command}': {e}") from e
 
     def get_backup_paths(self) -> dict[str, pathlib.Path]:
         """
@@ -487,14 +917,22 @@ class ProjectZomboidServerManager(GameServerManager):
         Returns:
             Dictionary mapping backup item names to their paths
         """
-        user_profile = pathlib.Path(os.environ.get("USERPROFILE", os.path.expanduser("~")))
+        user_profile = pathlib.Path(
+            os.environ.get("USERPROFILE", os.path.expanduser("~"))
+        )
         zomboid_dir = user_profile / "Zomboid"
 
         return {
             "server_ini": zomboid_dir / "Server" / f"{self.server_name}.ini",
-            "sandbox_vars": zomboid_dir / "Server" / f"{self.server_name}_SandboxVars.lua",
-            "spawnpoints": zomboid_dir / "Server" / f"{self.server_name}_spawnpoints.lua",
-            "spawnregions": zomboid_dir / "Server" / f"{self.server_name}_spawnregions.lua",
+            "sandbox_vars": zomboid_dir
+            / "Server"
+            / f"{self.server_name}_SandboxVars.lua",
+            "spawnpoints": zomboid_dir
+            / "Server"
+            / f"{self.server_name}_spawnpoints.lua",
+            "spawnregions": zomboid_dir
+            / "Server"
+            / f"{self.server_name}_spawnregions.lua",
             "saves_folder": zomboid_dir / "Saves" / "Multiplayer" / self.server_name,
             "player_database": zomboid_dir / "db" / f"{self.server_name}.db",
         }
@@ -530,8 +968,9 @@ class ProjectZomboidServerManager(GameServerManager):
             "player_database": "player database",
         }
 
-        # Use the backup utility
-        backup_utility = BackupUtility(Config.PZ_BACKUP_PATH, self.server_name)
+        # Use version-specific backup path
+        backup_path = self.get_backup_path_for_branch()
+        backup_utility = BackupUtility(backup_path, self.server_name)
         result = backup_utility.create_backup(
             paths_to_backup=self.get_backup_paths(),
             friendly_names=friendly_names,
@@ -546,6 +985,8 @@ class ProjectZomboidServerManager(GameServerManager):
             )
 
         # Clean up old backups, keeping only the 6 most recent
-        backup_utility.cleanup_old_backups(max_backups=6, progress_callback=progress_callback)
+        backup_utility.cleanup_old_backups(
+            max_backups=6, progress_callback=progress_callback
+        )
 
         return result

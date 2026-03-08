@@ -115,6 +115,45 @@ class GameServerManager(ABC):
         """
         raise ServerControlError("This game server does not support backups")
 
+    def get_version(self) -> dict[str, str]:
+        """
+        Get the current version/branch information for the server.
+
+        Returns:
+            Dictionary with 'branch' (stable/beta) and 'version' (build number if known)
+
+        Raises:
+            ServerControlError: If version detection is not supported
+        """
+        raise ServerControlError("This game server does not support version detection")
+
+    def set_version(self, branch: str) -> str:
+        """
+        Switch the server to a different version/branch.
+
+        Args:
+            branch: The branch to switch to (e.g., 'stable', 'beta')
+
+        Returns:
+            A message describing the result of the operation
+
+        Raises:
+            ServerControlError: If version switching is not supported or fails
+        """
+        raise ServerControlError("This game server does not support version switching")
+
+    def get_available_versions(self) -> list[dict[str, str | bool]]:
+        """
+        Get the list of available versions/branches for this server.
+
+        Returns:
+            List of dictionaries with 'id', 'name', and 'description' for each version
+
+        Raises:
+            ServerControlError: If version listing is not supported
+        """
+        raise ServerControlError("This game server does not support version listing")
+
 
 class ServerControlError(Exception):
     """A command issued to the game server failed."""

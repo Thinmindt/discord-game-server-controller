@@ -1,4 +1,3 @@
-
 from src.config import Config
 from src.game_server_interface import GameServerManager
 from src.palworld_manager import PalworldServerManager
@@ -22,7 +21,9 @@ class ServerFactory:
 
         if game_type in ["palworld", "pal"]:
             if not Config.PALWORLD_API_USERNAME or not Config.PALWORLD_API_PASSWORD:
-                raise ValueError("Palworld requires API_USERNAME and API_PASSWORD to be set")
+                raise ValueError(
+                    "Palworld requires API_USERNAME and API_PASSWORD to be set"
+                )
 
             return PalworldServerManager(
                 server_path=Config.PALWORLD_SERVER_PATH,
@@ -65,7 +66,4 @@ class ServerFactory:
         game_type_lower = game_type.lower()
         supported_games = ServerFactory.get_supported_games()
 
-        for game_name, aliases in supported_games.items():
-            if game_type_lower in aliases:
-                return True
-        return False
+        return any(game_type_lower in aliases for aliases in supported_games.values())
