@@ -126,7 +126,7 @@ class TestSteamCMDCommand:
         assert "-beta" in cmd
         # Find the index of -beta and check the next element
         beta_index = cmd.index("-beta")
-        assert cmd[beta_index + 1] == "b42unstable"
+        assert cmd[beta_index + 1] == "unstable"
         assert "380870" in cmd
         assert "validate" in cmd
 
@@ -233,7 +233,7 @@ class TestSetVersion:
         mock_run.assert_called_once()
         call_args = mock_run.call_args[0][0]
         assert "-beta" in call_args
-        assert "b42unstable" in call_args
+        assert "unstable" in call_args
 
     @patch("subprocess.run")
     def test_set_version_updates_state(self, mock_run, manager):

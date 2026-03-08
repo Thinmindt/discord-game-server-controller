@@ -21,6 +21,8 @@ class ProjectZomboidServerManager(GameServerManager):
 
     # Version state file name
     VERSION_STATE_FILE = "pz_version_state.json"
+    # SteamCMD log file name
+    STEAMCMD_LOG_FILE = "steamcmd_output.log"
 
     def __init__(
         self,
@@ -39,6 +41,73 @@ class ProjectZomboidServerManager(GameServerManager):
         self._log_lines_lock = threading.Lock()  # Add thread safety for log lines
         self._monitor_thread: threading.Thread | None = None
         self._stop_monitoring = False
+
+    def _get_steamcmd_log_path(self) -> pathlib.Path:
+        """Get the path to the SteamCMD log file."""
+        # Store in the logs directory if it exists, otherwise in the server directory
+        logs_dir = pathlib.Path(__file__).parent.parent / "logs"
+        if logs_dir.exists():
+            return logs_dir / self.STEAMCMD_LOG_FILE
+        server_dir = (
+            self.server_path.parent if self.server_path.is_file() else self.server_path
+        )
+        return server_dir / self.STEAMCMD_LOG_FILE
+
+    def _run_steamcmd(self, cmd: list[str], operation: str = "update") -> str:
+        """
+        Run a SteamCMD command and log the output to a file.
+
+        Args:
+            cmd: The SteamCMD command to run
+            operation: Description of the operation for logging
+
+        Returns:
+            The stdout from SteamCMD
+
+        Raises:
+            subprocess.CalledProcessError: If SteamCMD returns non-zero exit code
+        """
+        log_path = self._get_steamcmd_log_path()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Log the command being run
+        with open(log_path, "a", encoding="utf-8") as log_file:
+            log_file.write(f"\n{'='*60}\n")
+            log_file.write(f"[{timestamp}] SteamCMD {operation}\n")
+            log_file.write(f"Command: {' '.join(cmd)}\n")
+            log_file.write(f"{'='*60}\n\n")
+
+        print(f"Running SteamCMD... (log: {log_path})")
+
+        # Run SteamCMD and capture output
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+        # Log stdout and stderr (handle None or non-string values gracefully)
+        stdout_text = str(result.stdout) if result.stdout else ""
+        stderr_text = str(result.stderr) if result.stderr else ""
+
+        with open(log_path, "a", encoding="utf-8") as log_file:
+            if stdout_text:
+                log_file.write("--- STDOUT ---\n")
+                log_file.write(stdout_text)
+                log_file.write("\n")
+            if stderr_text:
+                log_file.write("--- STDERR ---\n")
+                log_file.write(stderr_text)
+                log_file.write("\n")
+            log_file.write(f"\n[Exit code: {result.returncode}]\n")
+
+        # Check for errors and raise if failed
+        if result.returncode != 0:
+            print(f"SteamCMD failed! Check log at: {log_path}")
+
+            # Raise a CalledProcessError to maintain compatibility
+            error = subprocess.CalledProcessError(
+                result.returncode, cmd, result.stdout, result.stderr
+            )
+            raise error
+
+        return result.stdout
 
     @property
     def server_name(self) -> str:
@@ -362,15 +431,18 @@ class ProjectZomboidServerManager(GameServerManager):
         cmd = self._build_steamcmd_update_command(current_branch)
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            print(f"SteamCMD output: {result.stdout}")
+            output = self._run_steamcmd(cmd, operation="update")
+            print(f"SteamCMD output: {output}")
         except subprocess.CalledProcessError as error:
             if error.returncode == 10:
                 print("Timeout... Please try again.")
             elif error.returncode == 134:
                 print("SteamCMD error occurred. Try again.")
 
-            raise ServerControlError(f"SteamCMD update failed with: {error}")
+            raise ServerControlError(
+                f"SteamCMD update failed with exit code {error.returncode}. "
+                f"Check log: {self._get_steamcmd_log_path()}"
+            ) from error
 
     def _build_steamcmd_update_command(self, branch: str) -> list[str]:
         """Build the SteamCMD command for updating to a specific branch."""
@@ -466,16 +538,26 @@ class ProjectZomboidServerManager(GameServerManager):
         cmd = self._build_steamcmd_update_command(normalized_branch)
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            print(f"SteamCMD output: {result.stdout}")
+            output = self._run_steamcmd(
+                cmd, operation=f"version switch to {normalized_branch}"
+            )
+            print(f"SteamCMD output: {output}")
         except subprocess.CalledProcessError as error:
             # Restore previous state on failure
             self._save_version_state(current_branch)
+            log_path = self._get_steamcmd_log_path()
             if error.returncode == 10:
-                raise ServerControlError("SteamCMD timed out. Please try again.")
+                raise ServerControlError(
+                    f"SteamCMD timed out. Please try again. Check log: {log_path}"
+                ) from error
             elif error.returncode == 134:
-                raise ServerControlError("SteamCMD error occurred. Try again.")
-            raise ServerControlError(f"SteamCMD update failed: {error}")
+                raise ServerControlError(
+                    f"SteamCMD error occurred. Try again. Check log: {log_path}"
+                ) from error
+            raise ServerControlError(
+                f"SteamCMD update failed with exit code {error.returncode}. "
+                f"Check log: {log_path}"
+            ) from error
 
         # Build response message
         branch_display = (
@@ -563,6 +645,104 @@ class ProjectZomboidServerManager(GameServerManager):
             },
         ]
 
+    def compare_configs(self) -> dict[str, object]:
+        """
+        Compare the server configurations between stable and beta versions.
+
+        Returns:
+            Dictionary containing:
+                - 'stable_path': Path to stable config
+                - 'beta_path': Path to beta config
+                - 'stable_exists': Whether stable config exists
+                - 'beta_exists': Whether beta config exists
+                - 'differences': List of key differences (if both exist)
+                - 'stable_settings': Important settings from stable (if exists)
+                - 'beta_settings': Important settings from beta (if exists)
+        """
+        user_profile = pathlib.Path(
+            os.environ.get("USERPROFILE", os.path.expanduser("~"))
+        )
+        server_dir = user_profile / "Zomboid" / "Server"
+
+        stable_config_path = server_dir / f"{self._base_server_name}.ini"
+        beta_config_path = server_dir / f"{self._base_server_name}_b42.ini"
+
+        result: dict[str, object] = {
+            "stable_path": str(stable_config_path),
+            "beta_path": str(beta_config_path),
+            "stable_exists": stable_config_path.exists(),
+            "beta_exists": beta_config_path.exists(),
+            "differences": [],
+            "stable_settings": {},
+            "beta_settings": {},
+        }
+
+        # Important settings to highlight
+        important_keys = [
+            "AdminPassword",
+            "Password",
+            "ServerName",
+            "PublicName",
+            "MaxPlayers",
+            "DefaultPort",
+            "UDPPort",
+            "SteamPort1",
+            "SteamPort2",
+            "RCONPort",
+            "PVP",
+            "PauseEmpty",
+            "Open",
+            "Public",
+            "ServerWelcomeMessage",
+            "Mods",
+            "Map",
+            "WorkshopItems",
+        ]
+
+        def parse_ini(path: pathlib.Path) -> dict[str, str]:
+            """Parse an INI file and return a dict of key-value pairs."""
+            settings: dict[str, str] = {}
+            try:
+                with open(path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if "=" in line and not line.startswith("#"):
+                            key, _, value = line.partition("=")
+                            settings[key.strip()] = value.strip()
+            except (OSError, UnicodeDecodeError):
+                pass
+            return settings
+
+        # Parse configs if they exist
+        stable_settings: dict[str, str] = {}
+        beta_settings: dict[str, str] = {}
+
+        if stable_config_path.exists():
+            stable_settings = parse_ini(stable_config_path)
+            result["stable_settings"] = {
+                k: stable_settings.get(k, "<not set>") for k in important_keys
+            }
+
+        if beta_config_path.exists():
+            beta_settings = parse_ini(beta_config_path)
+            result["beta_settings"] = {
+                k: beta_settings.get(k, "<not set>") for k in important_keys
+            }
+
+        # Find differences if both configs exist
+        if stable_config_path.exists() and beta_config_path.exists():
+            differences: list[dict[str, str]] = []
+            for key in important_keys:
+                stable_val = stable_settings.get(key, "<not set>")
+                beta_val = beta_settings.get(key, "<not set>")
+                if stable_val != beta_val:
+                    differences.append(
+                        {"key": key, "stable": stable_val, "beta": beta_val}
+                    )
+            result["differences"] = differences
+
+        return result
+
     def get_backup_path_for_branch(self, branch: str | None = None) -> pathlib.Path:
         """Get the backup path for a specific branch or the current branch."""
         if branch is None:
@@ -598,10 +778,7 @@ class ProjectZomboidServerManager(GameServerManager):
             # Store marker for tracking new output - use timestamp-based approach
             with self._log_lines_lock:
                 # Get the last few lines to use as a marker
-                if self._log_lines:
-                    marker_lines = self._log_lines[-2:]  # Use last 2 lines as marker
-                else:
-                    marker_lines = []
+                marker_lines = self._log_lines[-2:] if self._log_lines else []
                 buffer_size_before = len(self._log_lines)
 
             print(f"DEBUG: Initial buffer size: {buffer_size_before}")
@@ -640,13 +817,12 @@ class ProjectZomboidServerManager(GameServerManager):
                     # Find the position of our marker
                     marker_found = False
                     for i, line in enumerate(current_buffer):
-                        if not marker_found:
-                            # Look for the last marker line
-                            if line == marker_lines[-1]:
-                                marker_found = True
-                                # Collect everything after the marker
-                                new_lines_found = current_buffer[i + 1 :]
-                                break
+                        # Look for the last marker line
+                        if not marker_found and line == marker_lines[-1]:
+                            marker_found = True
+                            # Collect everything after the marker
+                            new_lines_found = current_buffer[i + 1 :]
+                            break
                 else:
                     # No marker (empty buffer before), so everything is new
                     new_lines_found = current_buffer
@@ -671,11 +847,10 @@ class ProjectZomboidServerManager(GameServerManager):
                     if marker_lines:
                         marker_found = False
                         for i, line in enumerate(final_buffer):
-                            if not marker_found:
-                                if line == marker_lines[-1]:
-                                    marker_found = True
-                                    final_new_lines = final_buffer[i + 1 :]
-                                    break
+                            if not marker_found and line == marker_lines[-1]:
+                                marker_found = True
+                                final_new_lines = final_buffer[i + 1 :]
+                                break
                     else:
                         final_new_lines = final_buffer
                     new_lines_found = final_new_lines
@@ -690,11 +865,10 @@ class ProjectZomboidServerManager(GameServerManager):
                 if marker_lines:
                     marker_found = False
                     for i, line in enumerate(final_buffer):
-                        if not marker_found:
-                            if line == marker_lines[-1]:
-                                marker_found = True
-                                new_lines_found = final_buffer[i + 1 :]
-                                break
+                        if not marker_found and line == marker_lines[-1]:
+                            marker_found = True
+                            new_lines_found = final_buffer[i + 1 :]
+                            break
                 else:
                     new_lines_found = final_buffer
 
@@ -734,7 +908,7 @@ class ProjectZomboidServerManager(GameServerManager):
                 )
 
         except Exception as e:
-            raise ServerControlError(f"Failed to send command '{command}': {e}")
+            raise ServerControlError(f"Failed to send command '{command}': {e}") from e
 
     def get_backup_paths(self) -> dict[str, pathlib.Path]:
         """

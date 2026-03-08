@@ -53,7 +53,7 @@ class PalworldServerManager(GameServerManager):
         try:
             response = self._send_get_request(url)
         except requests.RequestException as e:
-            raise ServerControlError(f"Failed to get server info: {e}")
+            raise ServerControlError(f"Failed to get server info: {e}") from e
 
         # Convert Palworld-specific response to common ServerInfo format
         info = ServerInfo(
@@ -95,7 +95,9 @@ class PalworldServerManager(GameServerManager):
                 self._shutdown_via_api(wait_time)
                 return
             except (requests.RequestException, ServerControlError) as e:
-                print(f"API shutdown failed: {e}, falling back to process termination...")
+                print(
+                    f"API shutdown failed: {e}, falling back to process termination..."
+                )
 
         # Fall back to process termination
         if self.server_process:
@@ -107,14 +109,18 @@ class PalworldServerManager(GameServerManager):
                 self.server_process.wait(timeout=wait_time)
                 print("Server shut down gracefully")
             except subprocess.TimeoutExpired:
-                print(f"Graceful shutdown timed out after {wait_time}s, force killing...")
+                print(
+                    f"Graceful shutdown timed out after {wait_time}s, force killing..."
+                )
                 self.server_process.kill()
                 self.server_process.wait()
                 print("Server force killed")
 
             self.server_process = None
         else:
-            raise ServerControlError("No server process to shut down and API shutdown failed")
+            raise ServerControlError(
+                "No server process to shut down and API shutdown failed"
+            )
 
     def _shutdown_via_api(self, wait_time: int) -> None:
         """Shut down server via REST API."""
@@ -132,12 +138,14 @@ class PalworldServerManager(GameServerManager):
             else:
                 print(f"Server shutdown initiated via API: {response}")
         except requests.RequestException as e:
-            raise ServerControlError(f"Failed to shutdown server via API: {e}")
+            raise ServerControlError(f"Failed to shutdown server via API: {e}") from e
 
     def update_server(self) -> None:
         """Update the Palworld server using SteamCMD."""
         if self.is_on():
-            raise ServerControlError("Cannot update server while it's running. Stop it first.")
+            raise ServerControlError(
+                "Cannot update server while it's running. Stop it first."
+            )
 
         # Palworld server app ID is 2394010
         cmd = [
@@ -156,20 +164,29 @@ class PalworldServerManager(GameServerManager):
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             print(f"SteamCMD output: {result.stdout}")
         except subprocess.CalledProcessError as error:
-            raise ServerControlError(f"SteamCMD update failed: {error}")
+            raise ServerControlError(f"SteamCMD update failed: {error}") from error
 
     def get_default_port(self) -> int:
         """Get the default port for Palworld server."""
         return 8211
 
-    def _send_get_request(self, url: str, payload: dict[Any, Any] = {}) -> dict[str, Any]:
+    def _send_get_request(
+        self, url: str, payload: dict[Any, Any] | None = None
+    ) -> dict[str, Any]:
         """Send a GET request to the server. Returns the response as a dict."""
-        response = requests.request("GET", url, headers=self.headers, data=payload, auth=self.auth)
+        if payload is None:
+            payload = {}
+        response = requests.request(
+            "GET", url, headers=self.headers, data=payload, auth=self.auth
+        )
         response.raise_for_status()
 
         # Handle empty responses or non-JSON responses
         if not response.text.strip():
-            return {"status": "success", "message": "Request completed (empty response)"}
+            return {
+                "status": "success",
+                "message": "Request completed (empty response)",
+            }
 
         try:
             response_dict: dict[str, Any] = json.loads(response.text)
@@ -180,12 +197,17 @@ class PalworldServerManager(GameServerManager):
 
     def _send_post_request(self, url: str, payload: dict[Any, Any]) -> dict[str, Any]:
         """Send a POST request to the server. Returns the response as a dict."""
-        response = requests.post(url, headers=self.headers, json=payload, auth=self.auth)
+        response = requests.post(
+            url, headers=self.headers, json=payload, auth=self.auth
+        )
         response.raise_for_status()
 
         # Handle empty responses or non-JSON responses
         if not response.text.strip():
-            return {"status": "success", "message": "Request completed (empty response)"}
+            return {
+                "status": "success",
+                "message": "Request completed (empty response)",
+            }
 
         try:
             response_dict: dict[str, Any] = json.loads(response.text)
@@ -200,13 +222,17 @@ class PalworldServerManager(GameServerManager):
         url = f"{self.base_url}players"
         return self._send_get_request(url)
 
-    def kick_player(self, steam_id: str, message: str = "You have been kicked") -> dict[str, Any]:
+    def kick_player(
+        self, steam_id: str, message: str = "You have been kicked"
+    ) -> dict[str, Any]:
         """Kick a player from the server."""
         url = f"{self.base_url}kick"
         payload = {"userid": steam_id, "message": message}
         return self._send_post_request(url, payload)
 
-    def ban_player(self, steam_id: str, message: str = "You have been banned") -> dict[str, Any]:
+    def ban_player(
+        self, steam_id: str, message: str = "You have been banned"
+    ) -> dict[str, Any]:
         """Ban a player from the server."""
         url = f"{self.base_url}ban"
         payload = {"userid": steam_id, "message": message}

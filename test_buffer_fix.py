@@ -12,7 +12,9 @@ def test_buffer_overflow_scenario():
 
     # Create a manager instance (we won't actually start a server)
     manager = ProjectZomboidServerManager(
-        server_path=Path("test_path"), steam_cmd_path=Path("test_steam"), server_name="test_server"
+        server_path=Path("test_path"),
+        steam_cmd_path=Path("test_steam"),
+        server_name="test_server",
     )
 
     # Simulate a full buffer (100 lines)
@@ -29,10 +31,7 @@ def test_buffer_overflow_scenario():
 
     # Simulate taking a snapshot (like before sending command)
     with manager._log_lines_lock:
-        if manager._log_lines:
-            marker_lines = manager._log_lines[-2:]  # Use last 2 lines as marker
-        else:
-            marker_lines = []
+        marker_lines = manager._log_lines[-2:] if manager._log_lines else []
         buffer_size_before = len(manager._log_lines)
 
     print(f"Marker lines: {marker_lines}")
@@ -60,11 +59,10 @@ def test_buffer_overflow_scenario():
     if marker_lines:
         marker_found = False
         for i, line in enumerate(current_buffer):
-            if not marker_found:
-                if line == marker_lines[-1]:
-                    marker_found = True
-                    new_lines_found = current_buffer[i + 1 :]
-                    break
+            if not marker_found and line == marker_lines[-1]:
+                marker_found = True
+                new_lines_found = current_buffer[i + 1 :]
+                break
 
     print("\n✅ Results:")
     print(f"New lines found: {len(new_lines_found)}")

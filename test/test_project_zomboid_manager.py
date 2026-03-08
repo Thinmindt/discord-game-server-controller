@@ -115,7 +115,7 @@ def test_project_zomboid_send_server_command():
 
         try:
             manager.send_server_command("help")
-            assert False, "Should have raised ServerControlError"
+            raise AssertionError("Should have raised ServerControlError")
         except ServerControlError as e:
             assert "Server is not running" in str(e)
 
@@ -175,7 +175,7 @@ def test_project_zomboid_send_server_command():
         manager.server_process.stdin = None
         try:
             manager.send_server_command("test")
-            assert False, "Should have raised ServerControlError"
+            raise AssertionError("Should have raised ServerControlError")
         except ServerControlError as e:
             assert "No stdin connection" in str(e)
 

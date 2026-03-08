@@ -198,6 +198,22 @@ async def available_versions(
     await game_commands.cmd_available_versions(discord_ctx, args)
 
 
+@bot.command(name="configdiff")
+async def configdiff(ctx: commands.Context[Any], game_type: str | None = None) -> None:
+    """Compare configuration files between server versions.
+
+    Usage: !configdiff [game_type]
+    Examples: !configdiff pz, !configdiff
+
+    Compares important settings between stable (B41) and beta (B42) configs,
+    highlighting differences like AdminPassword, ports, and server settings.
+    Useful when switching versions to ensure settings are consistent.
+    """
+    args = [game_type] if game_type else []
+    discord_ctx = DiscordContext(ctx)
+    await game_commands.cmd_configdiff(discord_ctx, args)
+
+
 def main() -> None:
     """Main entry point for the Discord bot."""
     if Config.TOKEN is None:

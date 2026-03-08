@@ -79,6 +79,26 @@ class DiscordBotCLI:
         ctx = MockContext()
         await game_commands.cmd_backup(ctx, args)
 
+    async def cmd_version(self, args: list[str]) -> None:
+        """Display the current server version/branch."""
+        ctx = MockContext()
+        await game_commands.cmd_version(ctx, args)
+
+    async def cmd_setversion(self, args: list[str]) -> None:
+        """Switch the server to a different version/branch."""
+        ctx = MockContext()
+        await game_commands.cmd_setversion(ctx, args)
+
+    async def cmd_available_versions(self, args: list[str]) -> None:
+        """Display available versions/branches for a game server."""
+        ctx = MockContext()
+        await game_commands.cmd_available_versions(ctx, args)
+
+    async def cmd_configdiff(self, args: list[str]) -> None:
+        """Compare configuration between server versions."""
+        ctx = MockContext()
+        await game_commands.cmd_configdiff(ctx, args)
+
     def cmd_help(self, args: list[str]) -> None:
         """Show help information."""
         help_text = """
@@ -92,7 +112,14 @@ Game Server Commands:
   info [game_type]          - Get server information
   ip [game_type]            - Get server IP and port
   cmd <game_type> <command> - Send admin command to running server
+  backup [game_type]        - Create a backup of server data
   games                     - List all supported games
+
+Version Management (Project Zomboid):
+  version [game_type]               - Show current version (stable/beta)
+  setversion <game_type> <version>  - Switch to stable (B41) or beta (B42)
+  versions [game_type]              - List available versions
+  configdiff [game_type]            - Compare configs between versions
 
 CLI Commands:
   help                      - Show this help message
@@ -105,6 +132,10 @@ Examples:
   cmd pz teleport player1 player2  - Teleport player1 to player2 in Project Zomboid
   cmd pz servermsg "Hello all"      - Broadcast message in Project Zomboid
   games                        - List all supported games
+  version pz                   - Show current PZ version (stable/beta)
+  setversion pz beta           - Switch PZ to Build 42 beta
+  setversion pz stable         - Switch PZ to Build 41 stable
+  configdiff pz                - Compare stable vs beta configs
 
 Note: If no game_type is specified, the default game will be used.
 Default game: {Config.DEFAULT_GAME}
@@ -150,6 +181,14 @@ Default game: {Config.DEFAULT_GAME}
                     await self.cmd_cmd(args)
                 elif command == "backup":
                     await self.cmd_backup(args)
+                elif command == "version":
+                    await self.cmd_version(args)
+                elif command == "setversion":
+                    await self.cmd_setversion(args)
+                elif command in ["versions", "available_versions"]:
+                    await self.cmd_available_versions(args)
+                elif command == "configdiff":
+                    await self.cmd_configdiff(args)
                 else:
                     print(f"❌ Unknown command: {command}")
                     print("Type 'help' for available commands.")

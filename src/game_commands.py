@@ -6,14 +6,19 @@ the Discord bot (main.py) and CLI tester (cli_test.py).
 """
 
 import asyncio
+import contextlib
 import queue
 import threading
+import time
 from typing import Protocol
 
 from src.backup_manager import BackupResult, BackupUtility
 from src.config import Config
 from src.game_server_interface import GameServerManager, ServerControlError
 from src.server_factory import ServerFactory
+
+# Default interval for "still working" messages (seconds)
+STILL_WORKING_INTERVAL = 15
 
 
 class MessageContext(Protocol):
@@ -57,7 +62,7 @@ class GameServerCommands:
     def _get_all_supported_aliases(self) -> list[str]:
         """Get all supported game aliases as a flat list."""
         supported = []
-        for game_name, aliases in ServerFactory.get_supported_games().items():
+        for _, aliases in ServerFactory.get_supported_games().items():
             supported.extend(aliases)
         return supported
 
@@ -87,25 +92,43 @@ class GameServerCommands:
             return
 
         if not manager.is_on():
-            await ctx.send(f"Starting {display_name} server...")
+            await ctx.send(f"🚀 Starting {display_name} server...")
             try:
                 manager.start_server()
             except ServerControlError as e:
                 await ctx.send(f"Failed to start server: {e}")
                 return
 
-            # Wait for server to start up
-            max_tries = 5 * 60  # 5 minutes
-            tries = 0
-            while tries < max_tries and not manager.is_on():
+            # Wait for server to start up with periodic progress messages
+            max_wait_time = 5 * 60  # 5 minutes
+            start_time = time.time()
+            last_update_time = start_time
+
+            while (time.time() - start_time) < max_wait_time and not manager.is_on():
                 await asyncio.sleep(1)
-                tries += 1
+
+                # Send periodic progress updates
+                elapsed = time.time() - start_time
+                if time.time() - last_update_time >= STILL_WORKING_INTERVAL:
+                    minutes = int(elapsed // 60)
+                    seconds = int(elapsed % 60)
+                    if minutes > 0:
+                        await ctx.send(
+                            f"⏳ Still starting up... ({minutes}m {seconds}s elapsed)"
+                        )
+                    else:
+                        await ctx.send(f"⏳ Still starting up... ({seconds}s elapsed)")
+                    last_update_time = time.time()
 
             if manager.is_on():
-                await ctx.send(f"🎉 {display_name} server started!")
+                elapsed = time.time() - start_time
+                await ctx.send(
+                    f"🎉 {display_name} server started! (took {int(elapsed)}s)"
+                )
             else:
                 await ctx.send(
-                    "⏰ Timeout occurred while starting up. Contact support."
+                    f"⏰ Timeout after {max_wait_time // 60} minutes. "
+                    "Server may still be starting - check logs."
                 )
         else:
             await ctx.send(f"✅ {display_name} server is already running.")
@@ -278,11 +301,52 @@ class GameServerCommands:
 
         await ctx.send(f"⬇️ Starting {display_name} server update. Please wait...")
 
-        try:
-            manager.update_server()
-            await ctx.send(f"✅ {display_name} server update executed successfully.")
-        except ServerControlError as e:
-            await ctx.send(f"❌ {display_name} server update failed: {e}")
+        # Run update in a thread with periodic progress updates
+        update_result_holder: list[Exception | None] = []
+        update_complete = threading.Event()
+
+        def run_update() -> None:
+            try:
+                manager.update_server()
+                update_result_holder.append(None)  # Success
+            except Exception as e:
+                update_result_holder.append(e)
+            finally:
+                update_complete.set()
+
+        update_thread = threading.Thread(target=run_update)
+        update_thread.start()
+
+        # Wait with periodic progress updates
+        start_time = time.time()
+        last_update_time = start_time
+
+        while not update_complete.is_set():
+            await asyncio.sleep(0.5)
+
+            elapsed = time.time() - start_time
+            if time.time() - last_update_time >= STILL_WORKING_INTERVAL:
+                minutes = int(elapsed // 60)
+                seconds = int(elapsed % 60)
+                if minutes > 0:
+                    await ctx.send(
+                        f"⏳ Update still running... ({minutes}m {seconds}s)"
+                    )
+                else:
+                    await ctx.send(f"⏳ Update still running... ({seconds}s)")
+                last_update_time = time.time()
+
+        update_thread.join()
+
+        # Check result
+        if update_result_holder and update_result_holder[0] is not None:
+            error = update_result_holder[0]
+            await ctx.send(f"❌ {display_name} server update failed: {error}")
+        else:
+            elapsed = time.time() - start_time
+            await ctx.send(
+                f"✅ {display_name} server update completed! (took {int(elapsed)}s)"
+            )
 
     async def cmd_info(self, ctx: MessageContext, args: list[str]) -> None:
         """Display information about the running server."""
@@ -304,6 +368,13 @@ class GameServerCommands:
             await ctx.send(f"Error: {str(e)}")
             return
 
+        # Check if the game supports version detection and get version info
+        version_info: dict[str, str] | None = None
+        with contextlib.suppress(
+            ServerControlError, AttributeError, NotImplementedError
+        ):
+            version_info = manager.get_version()
+
         if manager.is_on():
             try:
                 info = manager.get_server_info()
@@ -314,6 +385,14 @@ class GameServerCommands:
                     f"Version: {info.version}",
                     f"Description: {info.description}",
                 ]
+
+                # Add version/branch info if available
+                if version_info:
+                    branch_display = version_info.get(
+                        "branch_display", version_info.get("branch", "")
+                    )
+                    if branch_display:
+                        server_info.append(f"Branch: {branch_display}")
 
                 if info.max_players:
                     server_info.append(f"Max Players: {info.max_players}")
@@ -333,9 +412,22 @@ class GameServerCommands:
             except ServerControlError as e:
                 await ctx.send(f"❌ Could not retrieve server info: {e}")
         else:
-            await ctx.send(
-                f"⚠️ The {display_name} server is off. We cannot retrieve information."
-            )
+            # Show basic info even when server is off
+            offline_info = [f"⚠️ The {display_name} server is off."]
+
+            # Still show version info when server is off
+            if version_info:
+                branch_display = version_info.get(
+                    "branch_display", version_info.get("branch", "")
+                )
+                server_name = version_info.get("server_name", "")
+                if branch_display:
+                    offline_info.append(f"Branch: {branch_display}")
+                if server_name:
+                    offline_info.append(f"Server Name: `{server_name}`")
+
+            offline_info.append("\nStart the server to get detailed information.")
+            await ctx.send("\n".join(offline_info))
 
     async def cmd_ip(self, ctx: MessageContext, args: list[str]) -> None:
         """Display the public IP address of the host."""
@@ -686,8 +778,54 @@ class GameServerCommands:
             )
             await ctx.send("⏳ Running SteamCMD update. This may take a few minutes...")
 
-            result = manager.set_version(target_branch)
-            await ctx.send(result)
+            # Run SteamCMD in a thread with periodic progress updates
+            version_result_holder: list[str | Exception] = []
+            version_complete = threading.Event()
+
+            def run_version_switch() -> None:
+                try:
+                    result = manager.set_version(target_branch)
+                    version_result_holder.append(result)
+                except Exception as e:
+                    version_result_holder.append(e)
+                finally:
+                    version_complete.set()
+
+            version_thread = threading.Thread(target=run_version_switch)
+            version_thread.start()
+
+            # Wait with periodic progress updates
+            start_time = time.time()
+            last_update_time = start_time
+
+            while not version_complete.is_set():
+                await asyncio.sleep(0.5)
+
+                elapsed = time.time() - start_time
+                if time.time() - last_update_time >= STILL_WORKING_INTERVAL:
+                    minutes = int(elapsed // 60)
+                    seconds = int(elapsed % 60)
+                    if minutes > 0:
+                        await ctx.send(
+                            f"⏳ SteamCMD still running... ({minutes}m {seconds}s)"
+                        )
+                    else:
+                        await ctx.send(f"⏳ SteamCMD still running... ({seconds}s)")
+                    last_update_time = time.time()
+
+            version_thread.join()
+
+            # Check result
+            if not version_result_holder:
+                raise ServerControlError("Version switch failed unexpectedly")
+
+            version_result = version_result_holder[0]
+            if isinstance(version_result, Exception):
+                raise ServerControlError(str(version_result))
+
+            elapsed = time.time() - start_time
+            await ctx.send(version_result)
+            await ctx.send(f"⏱️ Version switch completed in {int(elapsed)}s")
 
         except ServerControlError as e:
             await ctx.send(f"❌ Version switch failed: {e}")
@@ -733,6 +871,124 @@ class GameServerCommands:
             + "\n".join(version_lines)
             + "\n\nUse `setversion <game> <version>` to switch."
         )
+
+    async def cmd_configdiff(self, ctx: MessageContext, args: list[str]) -> None:
+        """Compare configuration files between server versions."""
+        game_type = args[0] if args else Config.DEFAULT_GAME
+
+        found_game = self._find_supported_game(game_type)
+
+        if not found_game:
+            supported = self._get_all_supported_aliases()
+            await ctx.send(
+                f"Unsupported game type '{game_type}'. Supported games: {', '.join(supported)}"
+            )
+            return
+
+        try:
+            manager = self.get_server_manager(game_type)
+            display_name = self._format_game_name(found_game)
+        except ValueError as e:
+            await ctx.send(f"Error: {str(e)}")
+            return
+
+        # Check if this game supports config comparison
+        if not hasattr(manager, "compare_configs"):
+            await ctx.send(f"⚠️ {display_name} does not support config comparison.")
+            return
+
+        try:
+            comparison = manager.compare_configs()
+        except (ServerControlError, NotImplementedError):
+            await ctx.send(f"⚠️ {display_name} does not support config comparison.")
+            return
+
+        # Build the response message
+        stable_exists = comparison.get("stable_exists", False)
+        beta_exists = comparison.get("beta_exists", False)
+
+        messages = [f"📋 **{display_name} Config Comparison**\n"]
+
+        # Show config file status
+        stable_path = comparison.get("stable_path", "")
+        beta_path = comparison.get("beta_path", "")
+        messages.append("**Config Files:**")
+        messages.append(
+            f"• Stable (B41): {'✅ Found' if stable_exists else '❌ Not found'}"
+        )
+        messages.append(
+            f"• Beta (B42): {'✅ Found' if beta_exists else '❌ Not found'}"
+        )
+
+        if not stable_exists and not beta_exists:
+            messages.append(
+                "\n⚠️ No config files found. Start the server for each version "
+                "to generate default configs."
+            )
+            messages.append(f"\nExpected paths:\n• `{stable_path}`\n• `{beta_path}`")
+            await ctx.send("\n".join(messages))
+            return
+
+        # Show differences if both exist
+        if stable_exists and beta_exists:
+            differences = comparison.get("differences", [])
+            if differences:
+                messages.append("\n**⚠️ Key Differences:**")
+                for diff in differences[:15]:  # Limit to 15 differences
+                    key = diff.get("key", "")
+                    stable_val = diff.get("stable", "")
+                    beta_val = diff.get("beta", "")
+                    # Truncate long values
+                    stable_display = (
+                        (stable_val[:30] + "...")
+                        if len(stable_val) > 33
+                        else stable_val
+                    )
+                    beta_display = (
+                        (beta_val[:30] + "...") if len(beta_val) > 33 else beta_val
+                    )
+                    messages.append(f"• **{key}**")
+                    messages.append(f"  Stable: `{stable_display}`")
+                    messages.append(f"  Beta: `{beta_display}`")
+
+                if len(differences) > 15:
+                    messages.append(
+                        f"\n... and {len(differences) - 15} more differences"
+                    )
+
+                messages.append(
+                    "\n💡 **Tip:** Copy important settings (like AdminPassword) "
+                    "from your primary config to the other version."
+                )
+            else:
+                messages.append(
+                    "\n✅ **No key differences found!** "
+                    "Your important settings match between versions."
+                )
+
+        # Show important settings if only one config exists
+        elif stable_exists:
+            messages.append("\n📝 **Stable Config Settings (to copy to beta):**")
+            stable_settings = comparison.get("stable_settings", {})
+            for key, value in list(stable_settings.items())[:10]:
+                if value and value != "<not set>":
+                    display_val = (value[:30] + "...") if len(value) > 33 else value
+                    messages.append(f"• {key}: `{display_val}`")
+
+        elif beta_exists:
+            messages.append("\n📝 **Beta Config Settings (to copy to stable):**")
+            beta_settings = comparison.get("beta_settings", {})
+            for key, value in list(beta_settings.items())[:10]:
+                if value and value != "<not set>":
+                    display_val = (value[:30] + "...") if len(value) > 33 else value
+                    messages.append(f"• {key}: `{display_val}`")
+
+        # Add paths info
+        messages.append("\n**Config Paths:**")
+        messages.append(f"• Stable: `{stable_path}`")
+        messages.append(f"• Beta: `{beta_path}`")
+
+        await ctx.send("\n".join(messages))
 
 
 # Global instance that can be shared

@@ -1,10 +1,10 @@
 """Tests for version-related Discord command handlers."""
 
 import asyncio
+import pathlib
 from unittest.mock import MagicMock, patch
 
-import pytest
-
+from src.backup_manager import BackupResult
 from src.game_commands import GameServerCommands
 from src.game_server_interface import ServerControlError
 
@@ -181,9 +181,6 @@ class TestCmdSetVersion:
         with patch(
             "src.server_factory.ServerFactory.create_server_manager"
         ) as mock_factory:
-            from src.backup_manager import BackupResult
-            import pathlib
-
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = False
             mock_manager.backup_server.return_value = BackupResult(
@@ -305,9 +302,6 @@ class TestCmdUpdateWithBackup:
         with patch(
             "src.server_factory.ServerFactory.create_server_manager"
         ) as mock_factory:
-            from src.backup_manager import BackupResult
-            import pathlib
-
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = False
             mock_manager.backup_server.return_value = BackupResult(

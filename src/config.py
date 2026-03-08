@@ -23,7 +23,7 @@ class Config:
     PZ_BACKUP_PATH = pathlib.Path(
         os.getenv("PZ_BACKUP_PATH") or "D:\\ZomboidServerBackup"
     )
-    PZ_BETA_BRANCH = os.getenv("PZ_BETA_BRANCH", "b42unstable")
+    PZ_BETA_BRANCH = os.getenv("PZ_BETA_BRANCH", "unstable")
 
     # Common configs
     STEAM_CMD_PATH = pathlib.Path(os.getenv("STEAM_CMD_PATH") or "")
