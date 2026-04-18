@@ -21,9 +21,7 @@ class ServerFactory:
 
         if game_type in ["palworld", "pal"]:
             if not Config.PALWORLD_API_USERNAME or not Config.PALWORLD_API_PASSWORD:
-                raise ValueError(
-                    "Palworld requires API_USERNAME and API_PASSWORD to be set"
-                )
+                raise ValueError("Palworld requires API_USERNAME and API_PASSWORD to be set")
 
             return PalworldServerManager(
                 server_path=Config.PALWORLD_SERVER_PATH,

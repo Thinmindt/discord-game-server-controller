@@ -99,6 +99,11 @@ class DiscordBotCLI:
         ctx = MockContext()
         await game_commands.cmd_configdiff(ctx, args)
 
+    async def cmd_setmods(self, args: list[str]) -> None:
+        """Set the active mod list by Workshop IDs."""
+        ctx = MockContext()
+        await game_commands.cmd_setmods(ctx, args)
+
     def cmd_help(self, args: list[str]) -> None:
         """Show help information."""
         help_text = """
@@ -120,6 +125,7 @@ Version Management (Project Zomboid):
   setversion <game_type> <version>  - Switch to stable (B41) or beta (B42)
   versions [game_type]              - List available versions
   configdiff [game_type]            - Compare configs between versions
+  setmods <game_type> <id1> <id2>  - Set mod list from Steam Workshop IDs
 
 CLI Commands:
   help                      - Show this help message
@@ -189,6 +195,8 @@ Default game: {Config.DEFAULT_GAME}
                     await self.cmd_available_versions(args)
                 elif command == "configdiff":
                     await self.cmd_configdiff(args)
+                elif command == "setmods":
+                    await self.cmd_setmods(args)
                 else:
                     print(f"❌ Unknown command: {command}")
                     print("Type 'help' for available commands.")

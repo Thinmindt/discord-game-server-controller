@@ -27,9 +27,7 @@ bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
 
 @bot.command(name="start")
-async def start_server(
-    ctx: commands.Context[Any], game_type: str | None = None
-) -> None:
+async def start_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Start the game server.
 
     Usage: !start [game_type]
@@ -41,9 +39,7 @@ async def start_server(
 
 
 @bot.command(name="restart")
-async def restart_server(
-    ctx: commands.Context[Any], game_type: str | None = None
-) -> None:
+async def restart_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Restart the game server.
 
     Usage: !restart [game_type]
@@ -67,9 +63,7 @@ async def stop_server(ctx: commands.Context[Any], game_type: str | None = None) 
 
 
 @bot.command(name="update")
-async def update_server(
-    ctx: commands.Context[Any], game_type: str | None = None
-) -> None:
+async def update_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Update the server. You must stop the server before updating.
 
     Usage: !update [game_type]
@@ -128,9 +122,7 @@ async def send_server_command(ctx: commands.Context[Any], *args: str) -> None:
 
 
 @bot.command(name="backup")
-async def backup_server(
-    ctx: commands.Context[Any], game_type: str | None = None
-) -> None:
+async def backup_server(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Create a backup of the game server data.
 
     Usage: !backup [game_type]
@@ -183,9 +175,7 @@ async def set_version(
 
 
 @bot.command(name="available_versions")
-async def available_versions(
-    ctx: commands.Context[Any], game_type: str | None = None
-) -> None:
+async def available_versions(ctx: commands.Context[Any], game_type: str | None = None) -> None:
     """Display the available versions/branches for a game server.
 
     Usage: !available_versions [game_type]

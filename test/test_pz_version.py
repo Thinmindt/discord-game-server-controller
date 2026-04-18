@@ -176,10 +176,7 @@ class TestGetAvailableVersions:
         beta = next(v for v in versions if v["id"] == "beta")
 
         assert "Build 42" in beta["name"]
-        assert (
-            "beta" in beta["description"].lower()
-            or "unstable" in beta["description"].lower()
-        )
+        assert "beta" in beta["description"].lower() or "unstable" in beta["description"].lower()
 
     def test_current_version_is_selected(self, manager):
         """Test that the current version is marked as selected."""

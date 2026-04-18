@@ -86,9 +86,7 @@ class GameServerManager(ABC):
         """
         raise ServerControlError("This game server does not support ad-hoc commands")
 
-    def backup_server(
-        self, progress_callback: Callable[[str], None] | None = None
-    ) -> BackupResult:
+    def backup_server(self, progress_callback: Callable[[str], None] | None = None) -> BackupResult:
         """
         Create a backup of the server data.
 

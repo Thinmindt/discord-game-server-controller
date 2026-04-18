@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import re
 import subprocess
 import threading
 import time
@@ -48,9 +49,7 @@ class ProjectZomboidServerManager(GameServerManager):
         logs_dir = pathlib.Path(__file__).parent.parent / "logs"
         if logs_dir.exists():
             return logs_dir / self.STEAMCMD_LOG_FILE
-        server_dir = (
-            self.server_path.parent if self.server_path.is_file() else self.server_path
-        )
+        server_dir = self.server_path.parent if self.server_path.is_file() else self.server_path
         return server_dir / self.STEAMCMD_LOG_FILE
 
     def _run_steamcmd(self, cmd: list[str], operation: str = "update") -> str:
@@ -72,10 +71,10 @@ class ProjectZomboidServerManager(GameServerManager):
 
         # Log the command being run
         with open(log_path, "a", encoding="utf-8") as log_file:
-            log_file.write(f"\n{'='*60}\n")
+            log_file.write(f"\n{'=' * 60}\n")
             log_file.write(f"[{timestamp}] SteamCMD {operation}\n")
             log_file.write(f"Command: {' '.join(cmd)}\n")
-            log_file.write(f"{'='*60}\n\n")
+            log_file.write(f"{'=' * 60}\n\n")
 
         print(f"Running SteamCMD... (log: {log_path})")
 
@@ -119,9 +118,7 @@ class ProjectZomboidServerManager(GameServerManager):
 
     def _get_version_state_path(self) -> pathlib.Path:
         """Get the path to the version state file."""
-        server_dir = (
-            self.server_path.parent if self.server_path.is_file() else self.server_path
-        )
+        server_dir = self.server_path.parent if self.server_path.is_file() else self.server_path
         return server_dir / self.VERSION_STATE_FILE
 
     def _get_current_branch(self) -> str:
@@ -217,9 +214,7 @@ class ProjectZomboidServerManager(GameServerManager):
 
     def _start_windows_server(self) -> None:
         """Start Project Zomboid server on Windows."""
-        server_dir = (
-            self.server_path.parent if self.server_path.is_file() else self.server_path
-        )
+        server_dir = self.server_path.parent if self.server_path.is_file() else self.server_path
         original_batch_file = server_dir / "StartServer64.bat"
 
         if not original_batch_file.exists():
@@ -245,9 +240,7 @@ class ProjectZomboidServerManager(GameServerManager):
 
     def _start_linux_server(self) -> None:
         """Start Project Zomboid server on Linux."""
-        server_dir = (
-            self.server_path.parent if self.server_path.is_file() else self.server_path
-        )
+        server_dir = self.server_path.parent if self.server_path.is_file() else self.server_path
         start_script = server_dir / "start-server.sh"
 
         if not start_script.exists():
@@ -300,24 +293,20 @@ class ProjectZomboidServerManager(GameServerManager):
                 # Check for server startup completion
                 if "*** SERVER STARTED ****" in line:
                     self._server_started = True
-                    print("\n🎉 Project Zomboid server has started successfully!")
+                    print("\nProject Zomboid server has started successfully!")
                     print("-" * 50)
 
                 # Check for shutdown messages
-                elif (
-                    "Saving world" in line
-                    or "Server shutdown" in line
-                    or "Goodbye" in line
-                ):
-                    print(f"🛑 {line}")
+                elif "Saving world" in line or "Server shutdown" in line or "Goodbye" in line:
+                    print(f"[SHUTDOWN] {line}")
 
                 # Check for port information
                 elif "Server is listening on port" in line:
-                    print(f"📡 {line}")
+                    print(f"[NETWORK] {line}")
 
                 # Check for client connection info
                 elif "Clients should use" in line:
-                    print(f"🔗 {line}")
+                    print(f"[INFO] {line}")
 
         except Exception as e:
             print(f"Error monitoring server output: {e}")
@@ -350,9 +339,7 @@ class ProjectZomboidServerManager(GameServerManager):
             print("Server shut down gracefully")
 
         except subprocess.TimeoutExpired:
-            print(
-                f"Graceful shutdown timed out after {wait_time}s, terminating process..."
-            )
+            print(f"Graceful shutdown timed out after {wait_time}s, terminating process...")
             self.server_process.terminate()
 
             try:
@@ -382,18 +369,11 @@ class ProjectZomboidServerManager(GameServerManager):
 
     def _modify_batch_file(self, batch_file: pathlib.Path) -> pathlib.Path:
         """
-        Modify the Windows batch file to use custom server name if needed.
+        Modify the Windows batch file to use custom server name and strip
+        unsupported CLI options (e.g. -password, -statistic removed in PZ 42).
         Returns the path to the batch file to use (original or modified).
+        Always regenerates the custom batch file to pick up changes.
         """
-        # If using default server name, use original batch file
-        if self.server_name == "servertest":
-            return batch_file
-
-        # Check if custom batch file already exists
-        custom_batch = batch_file.parent / f"StartServer64_{self.server_name}.bat"
-        if custom_batch.exists():
-            return custom_batch
-
         # Read the original batch file
         if not batch_file.exists():
             raise ServerControlError(f"Original batch file not found: {batch_file}")
@@ -401,31 +381,40 @@ class ProjectZomboidServerManager(GameServerManager):
         with open(batch_file) as f:
             content = f.read()
 
-        # Only modify the server name parameter in the GameServer command line
-        # Look for the pattern: zombie.network.GameServer and add -servername after it
-        if "zombie.network.GameServer" in content:
-            # Replace zombie.network.GameServer with zombie.network.GameServer -servername NAME
-            modified_content = content.replace(
-                "zombie.network.GameServer",
-                f"zombie.network.GameServer -servername {self.server_name}",
-            )
-
-            # Write the modified batch file
-            with open(custom_batch, "w") as f:
-                f.write(modified_content)
-
-            return custom_batch
-        else:
+        if "zombie.network.GameServer" not in content:
             raise ServerControlError(
                 f"Could not find 'zombie.network.GameServer' in batch file: {batch_file}"
             )
 
+        import re
+
+        # Strip unsupported CLI flags that PZ 42 no longer accepts
+        # These appear after zombie.network.GameServer on the java command line
+        content = re.sub(r"\s+-password\s+\S+", "", content)
+        content = re.sub(r"\s+-statistic\s+\S+", "", content)
+
+        # If using default server name, use original (cleaned) batch file
+        if self.server_name == "servertest":
+            return batch_file
+
+        custom_batch = batch_file.parent / f"StartServer64_{self.server_name}.bat"
+
+        # Add -servername if not already present
+        if f"-servername {self.server_name}" not in content:
+            content = content.replace(
+                "zombie.network.GameServer",
+                f"zombie.network.GameServer -servername {self.server_name}",
+            )
+
+        with open(custom_batch, "w") as f:
+            f.write(content)
+
+        return custom_batch
+
     def update_server(self) -> None:
         """Update the Project Zomboid server using SteamCMD for the current branch."""
         if self.is_on():
-            raise ServerControlError(
-                "Cannot update server while it's running. Stop it first."
-            )
+            raise ServerControlError("Cannot update server while it's running. Stop it first.")
 
         current_branch = self._get_current_branch()
         cmd = self._build_steamcmd_update_command(current_branch)
@@ -446,9 +435,7 @@ class ProjectZomboidServerManager(GameServerManager):
 
     def _build_steamcmd_update_command(self, branch: str) -> list[str]:
         """Build the SteamCMD command for updating to a specific branch."""
-        server_dir = (
-            self.server_path.parent if self.server_path.is_file() else self.server_path
-        )
+        server_dir = self.server_path.parent if self.server_path.is_file() else self.server_path
         cmd = [
             str(self.steam_cmd_path),
             "+force_install_dir",
@@ -474,9 +461,7 @@ class ProjectZomboidServerManager(GameServerManager):
             Dictionary with 'branch' (stable/beta), 'server_name', and version info
         """
         current_branch = self._get_current_branch()
-        branch_display = (
-            "Build 41 (Stable)" if current_branch == "stable" else "Build 42 (Beta)"
-        )
+        branch_display = "Build 41 (Stable)" if current_branch == "stable" else "Build 42 (Beta)"
 
         return {
             "branch": current_branch,
@@ -510,9 +495,7 @@ class ProjectZomboidServerManager(GameServerManager):
         # Check if already on this branch
         if normalized_branch == current_branch:
             branch_display = (
-                "Build 41 (Stable)"
-                if normalized_branch == "stable"
-                else "Build 42 (Beta)"
+                "Build 41 (Stable)" if normalized_branch == "stable" else "Build 42 (Beta)"
             )
             return (
                 f"Server is already on {branch_display}.\n"
@@ -538,9 +521,7 @@ class ProjectZomboidServerManager(GameServerManager):
         cmd = self._build_steamcmd_update_command(normalized_branch)
 
         try:
-            output = self._run_steamcmd(
-                cmd, operation=f"version switch to {normalized_branch}"
-            )
+            output = self._run_steamcmd(cmd, operation=f"version switch to {normalized_branch}")
             print(f"SteamCMD output: {output}")
         except subprocess.CalledProcessError as error:
             # Restore previous state on failure
@@ -555,23 +536,18 @@ class ProjectZomboidServerManager(GameServerManager):
                     f"SteamCMD error occurred. Try again. Check log: {log_path}"
                 ) from error
             raise ServerControlError(
-                f"SteamCMD update failed with exit code {error.returncode}. "
-                f"Check log: {log_path}"
+                f"SteamCMD update failed with exit code {error.returncode}. Check log: {log_path}"
             ) from error
 
         # Build response message
-        branch_display = (
-            "Build 41 (Stable)" if normalized_branch == "stable" else "Build 42 (Beta)"
-        )
+        branch_display = "Build 41 (Stable)" if normalized_branch == "stable" else "Build 42 (Beta)"
         messages = [
             f"✅ Successfully switched to {branch_display}!",
             f"Server name changed: `{old_server_name}` → `{new_server_name}`",
         ]
 
         if is_first_time:
-            user_profile = pathlib.Path(
-                os.environ.get("USERPROFILE", os.path.expanduser("~"))
-            )
+            user_profile = pathlib.Path(os.environ.get("USERPROFILE", os.path.expanduser("~")))
             config_path = user_profile / "Zomboid" / "Server" / f"{new_server_name}.ini"
             messages.extend(
                 [
@@ -611,13 +587,9 @@ class ProjectZomboidServerManager(GameServerManager):
         """Check if this is the first time switching to this branch (no config exists)."""
         # Determine server name for this branch
         test_server_name = (
-            f"{self._base_server_name}_b42"
-            if branch == "beta"
-            else self._base_server_name
+            f"{self._base_server_name}_b42" if branch == "beta" else self._base_server_name
         )
-        user_profile = pathlib.Path(
-            os.environ.get("USERPROFILE", os.path.expanduser("~"))
-        )
+        user_profile = pathlib.Path(os.environ.get("USERPROFILE", os.path.expanduser("~")))
         config_path = user_profile / "Zomboid" / "Server" / f"{test_server_name}.ini"
         return not config_path.exists()
 
@@ -659,9 +631,7 @@ class ProjectZomboidServerManager(GameServerManager):
                 - 'stable_settings': Important settings from stable (if exists)
                 - 'beta_settings': Important settings from beta (if exists)
         """
-        user_profile = pathlib.Path(
-            os.environ.get("USERPROFILE", os.path.expanduser("~"))
-        )
+        user_profile = pathlib.Path(os.environ.get("USERPROFILE", os.path.expanduser("~")))
         server_dir = user_profile / "Zomboid" / "Server"
 
         stable_config_path = server_dir / f"{self._base_server_name}.ini"
@@ -725,9 +695,7 @@ class ProjectZomboidServerManager(GameServerManager):
 
         if beta_config_path.exists():
             beta_settings = parse_ini(beta_config_path)
-            result["beta_settings"] = {
-                k: beta_settings.get(k, "<not set>") for k in important_keys
-            }
+            result["beta_settings"] = {k: beta_settings.get(k, "<not set>") for k in important_keys}
 
         # Find differences if both configs exist
         if stable_config_path.exists() and beta_config_path.exists():
@@ -736,9 +704,7 @@ class ProjectZomboidServerManager(GameServerManager):
                 stable_val = stable_settings.get(key, "<not set>")
                 beta_val = beta_settings.get(key, "<not set>")
                 if stable_val != beta_val:
-                    differences.append(
-                        {"key": key, "stable": stable_val, "beta": beta_val}
-                    )
+                    differences.append({"key": key, "stable": stable_val, "beta": beta_val})
             result["differences"] = differences
 
         return result
@@ -770,9 +736,7 @@ class ProjectZomboidServerManager(GameServerManager):
             raise ServerControlError("Cannot send command: Server is not running")
 
         if not self.server_process or not self.server_process.stdin:
-            raise ServerControlError(
-                "Cannot send command: No stdin connection to server"
-            )
+            raise ServerControlError("Cannot send command: No stdin connection to server")
 
         try:
             # Store marker for tracking new output - use timestamp-based approach
@@ -828,9 +792,7 @@ class ProjectZomboidServerManager(GameServerManager):
                     new_lines_found = current_buffer
 
                 if waited_time % 1.0 < check_interval:  # Debug every second
-                    print(
-                        f"DEBUG: After {waited_time:.1f}s - New logs: {len(new_lines_found)}"
-                    )
+                    print(f"DEBUG: After {waited_time:.1f}s - New logs: {len(new_lines_found)}")
 
                 if new_lines_found:
                     # We got some output, wait a bit more to capture any additional lines
@@ -888,9 +850,7 @@ class ProjectZomboidServerManager(GameServerManager):
                             if len(parts) >= 3:
                                 message = parts[2].strip()
                                 # Skip the echo of the command itself
-                                if not message.startswith(
-                                    "command entered via server console"
-                                ):
+                                if not message.startswith("command entered via server console"):
                                     response_lines.append(message)
                             else:
                                 response_lines.append(line)
@@ -910,6 +870,147 @@ class ProjectZomboidServerManager(GameServerManager):
         except Exception as e:
             raise ServerControlError(f"Failed to send command '{command}': {e}") from e
 
+    def _find_pz_workshop_path(self) -> pathlib.Path:
+        if Config.STEAM_PATH is None:
+            raise ServerControlError("STEAM_PATH is not configured. Set it in your .env file.")
+
+        vdf_path = Config.STEAM_PATH / "steamapps" / "libraryfolders.vdf"
+        if not vdf_path.exists():
+            raise ServerControlError(f"Steam library folders file not found: {vdf_path}")
+
+        content = vdf_path.read_text(encoding="utf-8")
+        sections = re.split(r'"\d+"\s*\n\s*\{', content)
+
+        for section in sections[1:]:
+            if '"108600"' in section:
+                path_match = re.search(r'"path"\s+"([^"]+)"', section)
+                if path_match:
+                    library_path = pathlib.Path(path_match.group(1).replace("\\\\", "\\"))
+                    return library_path / "steamapps" / "workshop" / "content" / "108600"
+
+        raise ServerControlError(
+            "Project Zomboid (108600) not found in any Steam library. "
+            "Make sure the game is installed."
+        )
+
+    def _read_workshop_mods(
+        self, workshop_content_path: pathlib.Path, workshop_id: str
+    ) -> list[tuple[str, list[str]]]:
+        mod_folder = workshop_content_path / workshop_id
+        if not mod_folder.exists():
+            raise ServerControlError(
+                f"Workshop item {workshop_id} not found locally. Subscribe to it in Steam first."
+            )
+
+        results: list[tuple[str, list[str]]] = []
+        seen_ids: set[str] = set()
+
+        for mod_info_path in sorted(mod_folder.rglob("mod.info")):
+            try:
+                lines = mod_info_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except OSError:
+                continue
+
+            mod_id: str | None = None
+            requires: list[str] = []
+
+            for line in lines:
+                if line.startswith("id="):
+                    mod_id = line[3:].strip()
+                elif line.startswith("require="):
+                    raw = line[8:].strip()
+                    requires = [r.strip().lstrip("\\") for r in raw.split(",") if r.strip()]
+
+            if mod_id and mod_id not in seen_ids:
+                seen_ids.add(mod_id)
+                results.append((mod_id, requires))
+
+        return results
+
+    def _topological_sort(self, mod_ids: list[str], deps: dict[str, list[str]]) -> list[str]:
+        mod_set = set(mod_ids)
+        filtered_deps = {m: [d for d in deps.get(m, []) if d in mod_set] for m in mod_ids}
+
+        reverse_deps: dict[str, list[str]] = {m: [] for m in mod_ids}
+        in_degree: dict[str, int] = dict.fromkeys(mod_ids, 0)
+
+        for m, reqs in filtered_deps.items():
+            for req in reqs:
+                reverse_deps[req].append(m)
+                in_degree[m] += 1
+
+        ready = sorted(m for m in mod_ids if in_degree[m] == 0)
+        result: list[str] = []
+
+        while ready:
+            m = ready.pop(0)
+            result.append(m)
+            for dependent in sorted(reverse_deps[m]):
+                in_degree[dependent] -= 1
+                if in_degree[dependent] == 0:
+                    ready.append(dependent)
+                    ready.sort()
+
+        remaining = sorted(m for m in mod_ids if m not in set(result))
+        result.extend(remaining)
+        return result
+
+    def _update_ini_mods(self, mods: list[str], workshop_items: list[str]) -> None:
+        ini_path = self.get_backup_paths()["server_ini"]
+        if not ini_path.exists():
+            raise ServerControlError(f"Server ini not found: {ini_path}")
+
+        lines = ini_path.read_text(encoding="utf-8").splitlines(keepends=True)
+        new_lines = []
+        for line in lines:
+            if line.startswith("Mods="):
+                new_lines.append("Mods=" + ";".join(mods) + "\n")
+            elif line.startswith("WorkshopItems="):
+                new_lines.append("WorkshopItems=" + ";".join(workshop_items) + "\n")
+            else:
+                new_lines.append(line)
+        ini_path.write_text("".join(new_lines), encoding="utf-8")
+
+    def set_mods(self, workshop_ids: list[str]) -> str:
+        workshop_content_path = self._find_pz_workshop_path()
+
+        all_mod_ids: list[str] = []
+        deps: dict[str, list[str]] = {}
+        mod_to_workshop: dict[str, str] = {}
+        missing: list[str] = []
+
+        for wid in workshop_ids:
+            try:
+                mods = self._read_workshop_mods(workshop_content_path, wid)
+            except ServerControlError:
+                missing.append(wid)
+                continue
+
+            for mod_id, requires in mods:
+                all_mod_ids.append(mod_id)
+                deps[mod_id] = requires
+                mod_to_workshop[mod_id] = wid
+
+        sorted_mods = self._topological_sort(all_mod_ids, deps)
+
+        seen_workshop_ids: set[str] = set()
+        sorted_workshop_ids: list[str] = []
+        for mod_id in sorted_mods:
+            wid = mod_to_workshop[mod_id]
+            if wid not in seen_workshop_ids:
+                sorted_workshop_ids.append(wid)
+                seen_workshop_ids.add(wid)
+
+        self._update_ini_mods(sorted_mods, sorted_workshop_ids)
+
+        response = (
+            f"✅ Updated mod list: {len(sorted_mods)} mods "
+            f"from {len(sorted_workshop_ids)} workshop items."
+        )
+        if missing:
+            response += f"\n⚠️ Not found locally (subscribe in Steam first): {', '.join(missing)}"
+        return response
+
     def get_backup_paths(self) -> dict[str, pathlib.Path]:
         """
         Get the paths that would be backed up for Project Zomboid.
@@ -917,29 +1018,19 @@ class ProjectZomboidServerManager(GameServerManager):
         Returns:
             Dictionary mapping backup item names to their paths
         """
-        user_profile = pathlib.Path(
-            os.environ.get("USERPROFILE", os.path.expanduser("~"))
-        )
+        user_profile = pathlib.Path(os.environ.get("USERPROFILE", os.path.expanduser("~")))
         zomboid_dir = user_profile / "Zomboid"
 
         return {
             "server_ini": zomboid_dir / "Server" / f"{self.server_name}.ini",
-            "sandbox_vars": zomboid_dir
-            / "Server"
-            / f"{self.server_name}_SandboxVars.lua",
-            "spawnpoints": zomboid_dir
-            / "Server"
-            / f"{self.server_name}_spawnpoints.lua",
-            "spawnregions": zomboid_dir
-            / "Server"
-            / f"{self.server_name}_spawnregions.lua",
+            "sandbox_vars": zomboid_dir / "Server" / f"{self.server_name}_SandboxVars.lua",
+            "spawnpoints": zomboid_dir / "Server" / f"{self.server_name}_spawnpoints.lua",
+            "spawnregions": zomboid_dir / "Server" / f"{self.server_name}_spawnregions.lua",
             "saves_folder": zomboid_dir / "Saves" / "Multiplayer" / self.server_name,
             "player_database": zomboid_dir / "db" / f"{self.server_name}.db",
         }
 
-    def backup_server(
-        self, progress_callback: Callable[[str], None] | None = None
-    ) -> BackupResult:
+    def backup_server(self, progress_callback: Callable[[str], None] | None = None) -> BackupResult:
         """
         Create a backup of the Project Zomboid server data.
 
@@ -985,8 +1076,6 @@ class ProjectZomboidServerManager(GameServerManager):
             )
 
         # Clean up old backups, keeping only the 6 most recent
-        backup_utility.cleanup_old_backups(
-            max_backups=6, progress_callback=progress_callback
-        )
+        backup_utility.cleanup_old_backups(max_backups=6, progress_callback=progress_callback)
 
         return result

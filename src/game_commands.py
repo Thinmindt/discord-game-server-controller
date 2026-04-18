@@ -113,18 +113,14 @@ class GameServerCommands:
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
                     if minutes > 0:
-                        await ctx.send(
-                            f"⏳ Still starting up... ({minutes}m {seconds}s elapsed)"
-                        )
+                        await ctx.send(f"⏳ Still starting up... ({minutes}m {seconds}s elapsed)")
                     else:
                         await ctx.send(f"⏳ Still starting up... ({seconds}s elapsed)")
                     last_update_time = time.time()
 
             if manager.is_on():
                 elapsed = time.time() - start_time
-                await ctx.send(
-                    f"🎉 {display_name} server started! (took {int(elapsed)}s)"
-                )
+                await ctx.send(f"🎉 {display_name} server started! (took {int(elapsed)}s)")
             else:
                 await ctx.send(
                     f"⏰ Timeout after {max_wait_time // 60} minutes. "
@@ -187,9 +183,7 @@ class GameServerCommands:
         if manager.is_on():
             wait_time = 30
             try:
-                await ctx.send(
-                    f"🔄 {display_name} server restarting. Players should log out now!"
-                )
+                await ctx.send(f"🔄 {display_name} server restarting. Players should log out now!")
 
                 # Stop the server
                 manager.shutdown_server(wait_time=wait_time)
@@ -213,9 +207,7 @@ class GameServerCommands:
             except ServerControlError as e:
                 await ctx.send(f"❌ Error during restart: {e}")
         else:
-            await ctx.send(
-                f"⚠️ {display_name} server is not running. Use `start` instead."
-            )
+            await ctx.send(f"⚠️ {display_name} server is not running. Use `start` instead.")
 
     async def cmd_update(self, ctx: MessageContext, args: list[str]) -> None:
         """Update the server."""
@@ -238,9 +230,7 @@ class GameServerCommands:
             return
 
         if manager.is_on():
-            await ctx.send(
-                f"⚠️ The {display_name} server is running. Shut it down before updating."
-            )
+            await ctx.send(f"⚠️ The {display_name} server is running. Shut it down before updating.")
             return
 
         # Auto-backup before updating (if supported)
@@ -282,16 +272,10 @@ class GameServerCommands:
             if backup_result_holder and isinstance(backup_result_holder[0], Exception):
                 error = backup_result_holder[0]
                 if "No files found to backup" in str(error):
-                    await ctx.send(
-                        "⚠️ No existing save data to backup. Proceeding with update..."
-                    )
+                    await ctx.send("⚠️ No existing save data to backup. Proceeding with update...")
                 else:
-                    await ctx.send(
-                        f"⚠️ Backup failed: {error}. Proceeding with update anyway..."
-                    )
-            elif backup_result_holder and isinstance(
-                backup_result_holder[0], BackupResult
-            ):
+                    await ctx.send(f"⚠️ Backup failed: {error}. Proceeding with update anyway...")
+            elif backup_result_holder and isinstance(backup_result_holder[0], BackupResult):
                 if backup_result_holder[0].success:
                     await ctx.send("✅ Backup completed!")
 
@@ -329,9 +313,7 @@ class GameServerCommands:
                 minutes = int(elapsed // 60)
                 seconds = int(elapsed % 60)
                 if minutes > 0:
-                    await ctx.send(
-                        f"⏳ Update still running... ({minutes}m {seconds}s)"
-                    )
+                    await ctx.send(f"⏳ Update still running... ({minutes}m {seconds}s)")
                 else:
                     await ctx.send(f"⏳ Update still running... ({seconds}s)")
                 last_update_time = time.time()
@@ -344,9 +326,7 @@ class GameServerCommands:
             await ctx.send(f"❌ {display_name} server update failed: {error}")
         else:
             elapsed = time.time() - start_time
-            await ctx.send(
-                f"✅ {display_name} server update completed! (took {int(elapsed)}s)"
-            )
+            await ctx.send(f"✅ {display_name} server update completed! (took {int(elapsed)}s)")
 
     async def cmd_info(self, ctx: MessageContext, args: list[str]) -> None:
         """Display information about the running server."""
@@ -370,9 +350,7 @@ class GameServerCommands:
 
         # Check if the game supports version detection and get version info
         version_info: dict[str, str] | None = None
-        with contextlib.suppress(
-            ServerControlError, AttributeError, NotImplementedError
-        ):
+        with contextlib.suppress(ServerControlError, AttributeError, NotImplementedError):
             version_info = manager.get_version()
 
         if manager.is_on():
@@ -417,9 +395,7 @@ class GameServerCommands:
 
             # Still show version info when server is off
             if version_info:
-                branch_display = version_info.get(
-                    "branch_display", version_info.get("branch", "")
-                )
+                branch_display = version_info.get("branch_display", version_info.get("branch", ""))
                 server_name = version_info.get("server_name", "")
                 if branch_display:
                     offline_info.append(f"Branch: {branch_display}")
@@ -451,9 +427,7 @@ class GameServerCommands:
             return
 
         ip = Config.get_public_ip()
-        await ctx.send(
-            f"🌐 The {display_name} server host IP address is: `{ip}:{port}`"
-        )
+        await ctx.send(f"🌐 The {display_name} server host IP address is: `{ip}:{port}`")
 
     async def cmd_games(self, ctx: MessageContext, args: list[str]) -> None:
         """List all supported game types and their aliases."""
@@ -505,9 +479,7 @@ class GameServerCommands:
             return
 
         if not manager.is_on():
-            await ctx.send(
-                f"⚠️ The {display_name} server is not running. Start it first."
-            )
+            await ctx.send(f"⚠️ The {display_name} server is not running. Start it first.")
             return
 
         try:
@@ -620,15 +592,11 @@ class GameServerCommands:
                             f"**Recent backups:**\n{backup_list}"
                         )
                     else:
-                        await ctx.send(
-                            f"✅ {display_name} backup completed successfully!"
-                        )
+                        await ctx.send(f"✅ {display_name} backup completed successfully!")
                 else:
                     await ctx.send(f"✅ {display_name} backup completed successfully!")
             else:
-                await ctx.send(
-                    f"⚠️ {display_name} backup completed with warnings: {result.message}"
-                )
+                await ctx.send(f"⚠️ {display_name} backup completed with warnings: {result.message}")
 
         except ServerControlError as e:
             await ctx.send(f"❌ Backup failed: {e}")
@@ -660,9 +628,7 @@ class GameServerCommands:
             await ctx.send(f"⚠️ {display_name} does not support version detection.")
             return
 
-        branch_display = version_info.get(
-            "branch_display", version_info.get("branch", "Unknown")
-        )
+        branch_display = version_info.get("branch_display", version_info.get("branch", "Unknown"))
         server_name = version_info.get("server_name", "Unknown")
 
         status = "🟢 Running" if manager.is_on() else "🔴 Stopped"
@@ -765,17 +731,13 @@ class GameServerCommands:
                 else:
                     await ctx.send(f"❌ Backup failed: {error}")
                     return
-            elif backup_result_holder and isinstance(
-                backup_result_holder[0], BackupResult
-            ):
+            elif backup_result_holder and isinstance(backup_result_holder[0], BackupResult):
                 backup_result = backup_result_holder[0]
                 if backup_result.success:
                     await ctx.send("✅ Backup completed successfully!")
 
             # Now switch versions
-            await ctx.send(
-                f"🔄 Switching {display_name} to version `{target_branch}`..."
-            )
+            await ctx.send(f"🔄 Switching {display_name} to version `{target_branch}`...")
             await ctx.send("⏳ Running SteamCMD update. This may take a few minutes...")
 
             # Run SteamCMD in a thread with periodic progress updates
@@ -806,9 +768,7 @@ class GameServerCommands:
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
                     if minutes > 0:
-                        await ctx.send(
-                            f"⏳ SteamCMD still running... ({minutes}m {seconds}s)"
-                        )
+                        await ctx.send(f"⏳ SteamCMD still running... ({minutes}m {seconds}s)")
                     else:
                         await ctx.send(f"⏳ SteamCMD still running... ({seconds}s)")
                     last_update_time = time.time()
@@ -830,9 +790,7 @@ class GameServerCommands:
         except ServerControlError as e:
             await ctx.send(f"❌ Version switch failed: {e}")
 
-    async def cmd_available_versions(
-        self, ctx: MessageContext, args: list[str]
-    ) -> None:
+    async def cmd_available_versions(self, ctx: MessageContext, args: list[str]) -> None:
         """Display the available versions/branches for a game server."""
         game_type = args[0] if args else Config.DEFAULT_GAME
 
@@ -862,15 +820,52 @@ class GameServerCommands:
         version_lines = []
         for v in versions:
             selected_marker = " ✅ (current)" if v.get("selected") else ""
-            version_lines.append(
-                f"• **{v['name']}**{selected_marker}\n  {v['description']}"
-            )
+            version_lines.append(f"• **{v['name']}**{selected_marker}\n  {v['description']}")
 
         await ctx.send(
             f"📋 **Available {display_name} Versions**\n\n"
             + "\n".join(version_lines)
             + "\n\nUse `setversion <game> <version>` to switch."
         )
+
+    async def cmd_setmods(self, ctx: MessageContext, args: list[str]) -> None:
+        """Set the active mod list by providing Steam Workshop IDs."""
+        if len(args) < 2:
+            await ctx.send(
+                "❌ Usage: `setmods <game_type> <workshop_id1> <workshop_id2> ...`\n"
+                "Example: `setmods pz 3171167894 3396446795 3437629766`\n"
+                "Workshop IDs are the numbers in Steam Workshop URLs."
+            )
+            return
+
+        game_type = args[0]
+        workshop_ids = args[1:]
+
+        found_game = self._find_supported_game(game_type)
+        if not found_game:
+            supported = self._get_all_supported_aliases()
+            await ctx.send(
+                f"Unsupported game type '{game_type}'. Supported games: {', '.join(supported)}"
+            )
+            return
+
+        try:
+            manager = self.get_server_manager(game_type)
+        except ValueError as e:
+            await ctx.send(f"Error: {str(e)}")
+            return
+
+        if not hasattr(manager, "set_mods"):
+            await ctx.send(
+                f"⚠️ {self._format_game_name(found_game)} does not support mod management."
+            )
+            return
+
+        try:
+            result = manager.set_mods(workshop_ids)
+            await ctx.send(result)
+        except ServerControlError as e:
+            await ctx.send(f"❌ Failed to set mods: {e}")
 
     async def cmd_configdiff(self, ctx: MessageContext, args: list[str]) -> None:
         """Compare configuration files between server versions."""
@@ -913,12 +908,8 @@ class GameServerCommands:
         stable_path = comparison.get("stable_path", "")
         beta_path = comparison.get("beta_path", "")
         messages.append("**Config Files:**")
-        messages.append(
-            f"• Stable (B41): {'✅ Found' if stable_exists else '❌ Not found'}"
-        )
-        messages.append(
-            f"• Beta (B42): {'✅ Found' if beta_exists else '❌ Not found'}"
-        )
+        messages.append(f"• Stable (B41): {'✅ Found' if stable_exists else '❌ Not found'}")
+        messages.append(f"• Beta (B42): {'✅ Found' if beta_exists else '❌ Not found'}")
 
         if not stable_exists and not beta_exists:
             messages.append(
@@ -940,21 +931,15 @@ class GameServerCommands:
                     beta_val = diff.get("beta", "")
                     # Truncate long values
                     stable_display = (
-                        (stable_val[:30] + "...")
-                        if len(stable_val) > 33
-                        else stable_val
+                        (stable_val[:30] + "...") if len(stable_val) > 33 else stable_val
                     )
-                    beta_display = (
-                        (beta_val[:30] + "...") if len(beta_val) > 33 else beta_val
-                    )
+                    beta_display = (beta_val[:30] + "...") if len(beta_val) > 33 else beta_val
                     messages.append(f"• **{key}**")
                     messages.append(f"  Stable: `{stable_display}`")
                     messages.append(f"  Beta: `{beta_display}`")
 
                 if len(differences) > 15:
-                    messages.append(
-                        f"\n... and {len(differences) - 15} more differences"
-                    )
+                    messages.append(f"\n... and {len(differences) - 15} more differences")
 
                 messages.append(
                     "\n💡 **Tip:** Copy important settings (like AdminPassword) "

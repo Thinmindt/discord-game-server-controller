@@ -15,18 +15,16 @@ class Config:
     PALWORLD_API_PASSWORD = os.getenv("PALWORLD_SERVER_REST_API_PASSWORD")
 
     # Project Zomboid specific configs
-    PZ_SERVER_PATH = pathlib.Path(
-        os.getenv("PZ_SERVER_PATH") or os.getenv("SERVER_PATH") or ""
-    )
+    PZ_SERVER_PATH = pathlib.Path(os.getenv("PZ_SERVER_PATH") or os.getenv("SERVER_PATH") or "")
     PZ_SERVER_NAME = os.getenv("PZ_SERVER_NAME", "servertest")
     PZ_MEMORY_GB = int(os.getenv("PZ_MEMORY_GB", "4"))
-    PZ_BACKUP_PATH = pathlib.Path(
-        os.getenv("PZ_BACKUP_PATH") or "D:\\ZomboidServerBackup"
-    )
+    PZ_BACKUP_PATH = pathlib.Path(os.getenv("PZ_BACKUP_PATH") or "D:\\ZomboidServerBackup")
     PZ_BETA_BRANCH = os.getenv("PZ_BETA_BRANCH", "unstable")
 
     # Common configs
     STEAM_CMD_PATH = pathlib.Path(os.getenv("STEAM_CMD_PATH") or "")
+    _steam_path_env = os.getenv("STEAM_PATH")
+    STEAM_PATH: pathlib.Path | None = pathlib.Path(_steam_path_env) if _steam_path_env else None
     DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
     DEFAULT_GAME = os.getenv("DEFAULT_GAME", "palworld")
 

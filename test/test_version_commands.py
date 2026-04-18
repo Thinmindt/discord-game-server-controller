@@ -38,9 +38,7 @@ class TestCmdVersion:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.get_version.side_effect = ServerControlError("Not supported")
             mock_factory.return_value = mock_manager
@@ -55,9 +53,7 @@ class TestCmdVersion:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.get_version.return_value = {
                 "branch": "stable",
@@ -79,9 +75,7 @@ class TestCmdVersion:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.get_version.return_value = {
                 "branch": "beta",
@@ -135,9 +129,7 @@ class TestCmdSetVersion:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = True
             mock_factory.return_value = mock_manager
@@ -153,18 +145,14 @@ class TestCmdSetVersion:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = False
             # Simulate no files to backup - message must contain "No files found to backup"
             mock_manager.backup_server.side_effect = ServerControlError(
                 "No files found to backup for server"
             )
-            mock_manager.set_version.return_value = (
-                "Successfully switched to Build 42 (Beta)!"
-            )
+            mock_manager.set_version.return_value = "Successfully switched to Build 42 (Beta)!"
             mock_factory.return_value = mock_manager
 
             asyncio.run(commands.cmd_setversion(ctx, ["pz", "beta"]))
@@ -178,9 +166,7 @@ class TestCmdSetVersion:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = False
             mock_manager.backup_server.return_value = BackupResult(
@@ -195,9 +181,7 @@ class TestCmdSetVersion:
             asyncio.run(commands.cmd_setversion(ctx, ["pz", "beta"]))
 
             # Should have backup success message
-            assert any(
-                "backup" in m.lower() and "completed" in m.lower() for m in ctx.messages
-            )
+            assert any("backup" in m.lower() and "completed" in m.lower() for m in ctx.messages)
 
 
 class TestCmdAvailableVersions:
@@ -218,13 +202,9 @@ class TestCmdAvailableVersions:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
-            mock_manager.get_available_versions.side_effect = ServerControlError(
-                "Not supported"
-            )
+            mock_manager.get_available_versions.side_effect = ServerControlError("Not supported")
             mock_factory.return_value = mock_manager
 
             asyncio.run(commands.cmd_available_versions(ctx, ["pz"]))
@@ -237,9 +217,7 @@ class TestCmdAvailableVersions:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.get_available_versions.return_value = [
                 {
@@ -262,18 +240,14 @@ class TestCmdAvailableVersions:
             assert len(ctx.messages) == 1
             assert "Build 41" in ctx.messages[0]
             assert "Build 42" in ctx.messages[0]
-            assert (
-                "current" in ctx.messages[0].lower()
-            )  # Should indicate current selection
+            assert "current" in ctx.messages[0].lower()  # Should indicate current selection
 
     def test_available_versions_shows_setversion_hint(self):
         """Test available_versions shows how to switch."""
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.get_available_versions.return_value = [
                 {
@@ -299,9 +273,7 @@ class TestCmdUpdateWithBackup:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = False
             mock_manager.backup_server.return_value = BackupResult(
@@ -327,9 +299,7 @@ class TestCmdUpdateWithBackup:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = False
             mock_manager.backup_server.side_effect = Exception("Backup failed")
@@ -342,18 +312,14 @@ class TestCmdUpdateWithBackup:
             mock_manager.update_server.assert_called_once()
 
             # Should have warning about backup failure
-            assert any(
-                "backup" in m.lower() and "failed" in m.lower() for m in ctx.messages
-            )
+            assert any("backup" in m.lower() and "failed" in m.lower() for m in ctx.messages)
 
     def test_update_skips_backup_for_unsupported_games(self):
         """Test that update skips backup gracefully for games without backup support."""
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = False
             mock_manager.backup_server.side_effect = ServerControlError(
@@ -372,9 +338,7 @@ class TestCmdUpdateWithBackup:
         commands = GameServerCommands()
         ctx = MockMessageContext()
 
-        with patch(
-            "src.server_factory.ServerFactory.create_server_manager"
-        ) as mock_factory:
+        with patch("src.server_factory.ServerFactory.create_server_manager") as mock_factory:
             mock_manager = MagicMock()
             mock_manager.is_on.return_value = True
             mock_factory.return_value = mock_manager

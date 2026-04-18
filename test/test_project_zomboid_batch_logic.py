@@ -78,15 +78,13 @@ PAUSE
         assert "PAUSE" in modified_content
 
 
-def test_batch_file_reuse_existing_custom():
-    """Test that existing custom batch file is reused."""
-    # Create a temporary directory and batch file
+def test_batch_file_regenerates_existing_custom():
+    """Test that an existing custom batch file is always regenerated from the original."""
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = pathlib.Path(temp_dir)
         batch_file = temp_path / "StartServer64.bat"
         custom_batch = temp_path / "StartServer64_MyServer.bat"
 
-        # Create original batch file
         batch_content = """@echo off
 cd /d "%~dp0"
 SET PZ_CLASSPATH=java/all.jar
@@ -94,29 +92,19 @@ SET PZ_CLASSPATH=java/all.jar
 PAUSE
 """
         batch_file.write_text(batch_content)
+        custom_batch.write_text("stale content")
 
-        # Create existing custom batch file
-        custom_content = """@echo off
-cd /d "%~dp0"
-SET PZ_CLASSPATH=java/all.jar
-".\\jre64\\bin\\java.exe" -Xms4g -Xmx4g -cp %PZ_CLASSPATH% \\
-  zombie.network.GameServer -servername MyServer
-PAUSE
-"""
-        custom_batch.write_text(custom_content)
-
-        # Create manager
         manager = ProjectZomboidServerManager(
             server_path=temp_path,
             steam_cmd_path=pathlib.Path("steamcmd"),
             server_name="MyServer",
         )
 
-        # Should return existing custom batch file
         result = manager._modify_batch_file(batch_file)
         assert result == custom_batch
-        # Content should remain unchanged
-        assert custom_batch.read_text() == custom_content
+        regenerated = custom_batch.read_text()
+        assert "zombie.network.GameServer -servername MyServer" in regenerated
+        assert "stale content" not in regenerated
 
 
 def test_batch_file_missing_gameserver():
